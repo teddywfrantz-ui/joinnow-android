@@ -7,6 +7,7 @@ on:
         description: "Production backend domain, without https://"
         required: true
         default: "join-up--teddywfrantz.replit.app"
+
   push:
     branches:
       - main
@@ -57,6 +58,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Free runner disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /opt/az
+          sudo docker image prune --all --force || true
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Validate backend domain
         run: |
           if [ -z "$EXPO_PUBLIC_DOMAIN" ]; then
@@ -64,8 +77,8 @@ jobs:
             exit 1
           fi
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install mobile dependencies
+        run: pnpm install --filter @workspace/joinnow-mobile... --frozen-lockfile
 
       - name: Generate Android project
         working-directory: artifacts/joinnow-mobile
