@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   build-apk:
-    name: Build installable APK
+    name: Build standalone release APK
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -84,14 +84,14 @@ jobs:
         working-directory: artifacts/joinnow-mobile
         run: pnpm exec expo prebuild --platform android --clean --no-install
 
-      - name: Build APK
+      - name: Build standalone release APK
         working-directory: artifacts/joinnow-mobile/android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Collect APK
         run: |
           mkdir -p apk-output
-          cp artifacts/joinnow-mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+          cp artifacts/joinnow-mobile/android/app/build/outputs/apk/release/app-release.apk \
             apk-output/JoinNow-Android.apk
 
       - name: Upload APK
