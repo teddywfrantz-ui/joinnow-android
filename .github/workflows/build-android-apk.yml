@@ -1,1 +1,90 @@
+name: Build Android APK
 
+on:
+  workflow_dispatch:
+    inputs:
+      backend_domain:
+        description: "Production backend domain, without https://"
+        required: true
+        default: "join-up--teddywfrantz.replit.app"
+  push:
+    branches:
+      - main
+    paths:
+      - "artifacts/joinnow-mobile/**"
+      - "lib/api-client-react/**"
+      - "lib/api-spec/**"
+      - "lib/api-zod/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/build-android-apk.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build installable APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      EXPO_PUBLIC_DOMAIN: ${{ inputs.backend_domain || vars.EXPO_PUBLIC_DOMAIN || 'join-up--teddywfrantz.replit.app' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Validate backend domain
+        run: |
+          if [ -z "$EXPO_PUBLIC_DOMAIN" ]; then
+            echo "::error::Set EXPO_PUBLIC_DOMAIN or provide backend_domain."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Android project
+        working-directory: artifacts/joinnow-mobile
+        run: pnpm exec expo prebuild --platform android --clean --no-install
+
+      - name: Build APK
+        working-directory: artifacts/joinnow-mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p apk-output
+          cp artifacts/joinnow-mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+            apk-output/JoinNow-Android.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: JoinNow-Android-APK
+          path: apk-output/JoinNow-Android.apk
+          if-no-files-found: error
+          retention-days: 30
