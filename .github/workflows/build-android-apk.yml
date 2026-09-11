@@ -31,7 +31,7 @@ jobs:
   build-apk:
     name: Build installable APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
 
     env:
       EXPO_PUBLIC_DOMAIN: ${{ inputs.backend_domain || vars.EXPO_PUBLIC_DOMAIN || 'join-up--teddywfrantz.replit.app' }}
