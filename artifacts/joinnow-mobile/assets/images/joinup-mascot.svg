@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Shadow -->
+  <ellipse cx="80" cy="85" rx="50" ry="10" fill="rgba(0,0,0,0.1)" />
+  
+  <!-- Pin base -->
+  <path d="M80 120C80 120 110 80 110 60C110 33.49 96.57 20 80 20C63.43 20 50 33.49 50 60C50 80 80 120 80 120Z" fill="url(#gradient)" />
+  
+  <!-- Circular face background -->
+  <circle cx="80" cy="60" r="30" fill="white" />
+  
+  <!-- Face outline -->
+  <circle cx="80" cy="60" r="30" stroke="#1E883A" stroke-width="3" />
+  
+  <!-- Eyes -->
+  <circle cx="67" cy="55" r="4" fill="#1A202C" />
+  <circle cx="93" cy="55" r="4" fill="#1A202C" />
+  
+  <!-- Eyebrows -->
+  <path d="M63 49C63 49 67 47 71 49" stroke="#1A202C" stroke-width="2" stroke-linecap="round" />
+  <path d="M89 49C89 49 93 47 97 49" stroke="#1A202C" stroke-width="2" stroke-linecap="round" />
+  
+  <!-- Smile -->
+  <path d="M65 68C65 68 70 76 80 76C90 76 95 68 95 68" stroke="#1A202C" stroke-width="2" stroke-linecap="round" />
+  
+  <!-- Define gradient to match the "Up" color -->
+  <defs>
+    <linearGradient id="gradient" x1="50" y1="20" x2="110" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#37D66C" />
+      <stop offset="1" stop-color="#1E883A" />
+    </linearGradient>
+  </defs>
+</svg>

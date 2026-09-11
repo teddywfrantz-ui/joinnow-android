@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "JoinNow"
+description = "JoinNow helps people discover, create, and join nearby meetups, connect with friends, chat with participants, and build community through shared activities."
+version = "1.0.0"
+id = "artifacts/joinnow"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24286
+
+[services.development]
+run = "pnpm --filter @workspace/joinnow run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/joinnow", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/joinnow/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24286"
+BASE_PATH = "/"
