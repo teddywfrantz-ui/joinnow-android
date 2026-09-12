@@ -68,9 +68,23 @@ const ANDROID_BRIDGE_SCRIPT = `
           }
         });
       };
+      const expandParticipantViewport = () => {
+        const activeTab = Array.from(document.querySelectorAll('[role="tab"][data-state="active"]'))
+          .find((tab) => /participants/i.test(tab.textContent || ''));
+        const detailsHeader = document.querySelector('#meetup-header');
+        if (!activeTab || !detailsHeader || detailsHeader.getAttribute('data-join-now-android-collapsed') === 'true') {
+          return;
+        }
+        detailsHeader.setAttribute('data-join-now-android-collapsed', 'true');
+        document.dispatchEvent(new CustomEvent('meetup-details-collapsed', {
+          bubbles: true,
+          detail: { collapsed: true }
+        }));
+      };
       const applyAndroidOnlyHiding = () => {
         hideHamburger();
         hideOptionalMapControls();
+        expandParticipantViewport();
       };
 
       ['pushState', 'replaceState'].forEach((method) => {
@@ -104,7 +118,7 @@ const ANDROID_BRIDGE_SCRIPT = `
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ['aria-label', 'title', 'class']
+        attributeFilter: ['aria-label', 'title', 'class', 'data-state']
       });
 
       let nextInputId = 1;
@@ -151,6 +165,8 @@ const ANDROID_BRIDGE_SCRIPT = `
       ].join('');
       document.documentElement.appendChild(style);
       applyAndroidOnlyHiding();
+      setTimeout(expandParticipantViewport, 250);
+      setTimeout(expandParticipantViewport, 750);
       window.__joinNowAndroidBridgeInstalled = true;
       window.__joinNowAndroidSendTheme = sendTheme;
       sendPath();
