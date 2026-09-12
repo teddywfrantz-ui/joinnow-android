@@ -76,7 +76,9 @@ const ANDROID_BRIDGE_SCRIPT = `
 
     const style = document.createElement('style');
     style.textContent = [
-      'header button.md\\\\:hidden{display:none!important}',
+      'header button.md\\\\:hidden,',
+      'header button:has(svg.lucide-menu),',
+      'button[data-sidebar="trigger"]{display:none!important}',
       '[data-join-now-user-profile]{',
       'width:calc(100vw - 16px)!important;',
       'max-width:none!important;',
