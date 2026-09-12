@@ -30,75 +30,98 @@ const ANDROID_USER_AGENT = 'JoinNowAndroid/1.0';
 
 const ANDROID_BRIDGE_SCRIPT = `
   (() => {
-    if (window.__joinNowAndroidBridgeInstalled) return true;
-    const send = (payload) => {
-      window.ReactNativeWebView?.postMessage(JSON.stringify(payload));
-    };
-    const sendPath = () => send({ type: 'navigation', path: window.location.pathname });
-    const sendTheme = () => send({
-      type: 'theme',
-      scheme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
-    });
-
-    ['pushState', 'replaceState'].forEach((method) => {
-      const original = window.history[method];
-      window.history[method] = function (...args) {
-        const result = original.apply(this, args);
-        setTimeout(sendPath, 0);
-        return result;
+    const install = () => {
+      if (window.__joinNowAndroidBridgeInstalled || !document.documentElement) return false;
+      const send = (payload) => {
+        window.ReactNativeWebView?.postMessage(JSON.stringify(payload));
       };
-    });
-    window.addEventListener('popstate', sendPath);
-    window.addEventListener('hashchange', sendPath);
-    new MutationObserver(sendTheme).observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class']
-    });
-
-    let nextInputId = 1;
-    document.addEventListener('focusin', (event) => {
-      const element = event.target;
-      if (!(element instanceof HTMLInputElement)) return;
-      const supportedTypes = ['text', 'search', 'email', 'tel', 'url', 'number', 'password'];
-      if (!supportedTypes.includes(element.type)) return;
-
-      if (!element.dataset.joinNowAndroidInputId) {
-        element.dataset.joinNowAndroidInputId = String(nextInputId++);
-      }
-      send({
-        type: 'inputFocus',
-        id: element.dataset.joinNowAndroidInputId,
-        value: element.value,
-        placeholder: element.placeholder || '',
-        inputType: element.type
+      const sendPath = () => send({ type: 'navigation', path: window.location.pathname });
+      const sendTheme = () => send({
+        type: 'theme',
+        scheme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
       });
-    }, true);
 
-    const style = document.createElement('style');
-    style.textContent = [
-      'header button.md\\\\:hidden,',
-      'header button:has(svg.lucide-menu),',
-      'button[data-sidebar="trigger"]{display:none!important}',
-      '.gm-bundled-control,',
-      '.gm-fullscreen-control,',
-      '.gm-style-mtc,',
-      '.gm-svpc,',
-      '.gm-style-cc button,',
-      'button[aria-label="Keyboard shortcuts"],',
-      'button[title="Keyboard shortcuts"]{display:none!important}',
-      '[data-join-now-user-profile]{',
-      'width:calc(100vw - 16px)!important;',
-      'max-width:none!important;',
-      'max-height:calc(95dvh - 8px)!important;',
-      'top:5dvh!important;',
-      'transform:translateX(-50%)!important;',
-      'padding-bottom:32px!important;',
-      '}'
-    ].join('');
-    document.documentElement.appendChild(style);
-    window.__joinNowAndroidBridgeInstalled = true;
-    sendPath();
-    sendTheme();
+      ['pushState', 'replaceState'].forEach((method) => {
+        const original = window.history[method];
+        window.history[method] = function (...args) {
+          const result = original.apply(this, args);
+          setTimeout(() => {
+            sendPath();
+            sendTheme();
+          }, 0);
+          return result;
+        };
+      });
+      window.addEventListener('popstate', () => {
+        sendPath();
+        sendTheme();
+      });
+      window.addEventListener('hashchange', () => {
+        sendPath();
+        sendTheme();
+      });
+      window.addEventListener('pageshow', sendTheme);
+      window.addEventListener('focus', sendTheme);
+      document.addEventListener('visibilitychange', sendTheme);
+      document.addEventListener('click', () => setTimeout(sendTheme, 0), true);
+      new MutationObserver(sendTheme).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['class']
+      });
+
+      let nextInputId = 1;
+      document.addEventListener('focusin', (event) => {
+        const element = event.target;
+        if (!(element instanceof HTMLInputElement)) return;
+        const supportedTypes = ['text', 'search', 'email', 'tel', 'url', 'number', 'password'];
+        if (!supportedTypes.includes(element.type)) return;
+
+        if (!element.dataset.joinNowAndroidInputId) {
+          element.dataset.joinNowAndroidInputId = String(nextInputId++);
+        }
+        send({
+          type: 'inputFocus',
+          id: element.dataset.joinNowAndroidInputId,
+          value: element.value,
+          placeholder: element.placeholder || '',
+          inputType: element.type
+        });
+      }, true);
+
+      const style = document.createElement('style');
+      style.textContent = [
+        'header button.md\\\\:hidden,',
+        'header button:has(svg.lucide-menu),',
+        'button[data-sidebar="trigger"]{display:none!important}',
+        '.gm-bundled-control,',
+        '.gm-fullscreen-control,',
+        '.gm-style-mtc,',
+        '.gm-svpc,',
+        '.gm-style-cc button,',
+        'button[aria-label="Keyboard shortcuts"],',
+        'button[title="Keyboard shortcuts"]{display:none!important}',
+        '[data-join-now-user-profile]{',
+        'width:calc(100vw - 16px)!important;',
+        'max-width:none!important;',
+        'max-height:calc(95dvh - 8px)!important;',
+        'top:5dvh!important;',
+        'transform:translateX(-50%)!important;',
+        'padding-bottom:32px!important;',
+        '}'
+      ].join('');
+      document.documentElement.appendChild(style);
+      window.__joinNowAndroidBridgeInstalled = true;
+      window.__joinNowAndroidSendTheme = sendTheme;
+      sendPath();
+      sendTheme();
+      return true;
+    };
+    if (!install()) {
+      document.addEventListener('DOMContentLoaded', install, { once: true });
+      setTimeout(install, 0);
+    } else {
+      window.__joinNowAndroidSendTheme?.();
+    }
     return true;
   })();
 `;
@@ -335,6 +358,7 @@ export function JoinNowWeb() {
         setSupportMultipleWindows={false}
         onNavigationStateChange={onNavigationStateChange}
         onMessage={onMessage}
+        onLoadEnd={() => webView.current?.injectJavaScript(ANDROID_BRIDGE_SCRIPT)}
         onShouldStartLoadWithRequest={(request) => {
           try {
             const url = new URL(request.url);
