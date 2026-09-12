@@ -40,6 +40,12 @@ const ANDROID_BRIDGE_SCRIPT = `
         type: 'theme',
         scheme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
       });
+      const hideHamburger = () => {
+        document.querySelectorAll('svg.lucide-menu').forEach((icon) => {
+          const button = icon.closest('button');
+          if (button) button.setAttribute('data-join-now-android-hamburger', 'true');
+        });
+      };
 
       ['pushState', 'replaceState'].forEach((method) => {
         const original = window.history[method];
@@ -68,6 +74,10 @@ const ANDROID_BRIDGE_SCRIPT = `
         attributes: true,
         attributeFilter: ['class']
       });
+      new MutationObserver(hideHamburger).observe(document.documentElement, {
+        childList: true,
+        subtree: true
+      });
 
       let nextInputId = 1;
       document.addEventListener('focusin', (event) => {
@@ -90,8 +100,7 @@ const ANDROID_BRIDGE_SCRIPT = `
 
       const style = document.createElement('style');
       style.textContent = [
-        'header button.md\\\\:hidden,',
-        'header button:has(svg.lucide-menu),',
+        'button[data-join-now-android-hamburger="true"],',
         'button[data-sidebar="trigger"]{display:none!important}',
         '.gm-bundled-control,',
         '.gm-fullscreen-control,',
@@ -110,6 +119,7 @@ const ANDROID_BRIDGE_SCRIPT = `
         '}'
       ].join('');
       document.documentElement.appendChild(style);
+      hideHamburger();
       window.__joinNowAndroidBridgeInstalled = true;
       window.__joinNowAndroidSendTheme = sendTheme;
       sendPath();
