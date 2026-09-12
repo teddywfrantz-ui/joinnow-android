@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   BackHandler,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -104,8 +104,13 @@ export function JoinNowWeb() {
         }}
         startInLoadingState
         renderLoading={() => (
-          <View style={[styles.loading, { backgroundColor: colors.background }]}>
-            <ActivityIndicator size="large" color={colors.primary} />
+          <View style={styles.loading}>
+            <Image
+              accessibilityLabel="JoinNow loading"
+              resizeMode="cover"
+              source={require('../assets/images/splash.png')}
+              style={styles.loadingImage}
+            />
           </View>
         )}
       />
@@ -118,9 +123,8 @@ const styles = StyleSheet.create({
   webView: { flex: 1 },
   loading: {
     ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
+  loadingImage: { height: '100%', width: '100%' },
   error: {
     flex: 1,
     alignItems: 'center',
