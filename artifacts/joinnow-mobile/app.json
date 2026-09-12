@@ -25,9 +25,11 @@
     "plugins": [
       "expo-router",
       ["expo-splash-screen", {
-        "image": "./assets/images/splash.png",
-        "imageWidth": 941,
-        "resizeMode": "cover"
+        "image": "./assets/images/icon.png",
+        "imageWidth": 180,
+        "resizeMode": "contain",
+        "backgroundColor": "#031C50",
+        "dark": { "backgroundColor": "#031C50" }
       }],
       ["expo-location", { "locationWhenInUsePermission": "Allow JoinNow to use your location to find nearby meetups." }]
     ],
