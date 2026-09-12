@@ -2,6 +2,9 @@ import { type Meetup } from '@db/schema';
 import { Code, Users, School, Dumbbell, Palette, Gamepad, Music, Utensils, LayoutGrid, Loader2, Calendar, MapPin, Clock, AlertTriangle, User } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { GoogleMap, InfoWindow, Circle, useJsApiLoader } from '@react-google-maps/api';
+const isJoinNowAndroid =
+  typeof navigator !== 'undefined' && navigator.userAgent.includes('JoinNowAndroid/');
+
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { GOOGLE_MAPS_CONFIG } from '@/utils/google-maps';
@@ -729,6 +732,11 @@ export function MapView({
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
+          zoomControl: !isJoinNowAndroid,
+          keyboardShortcuts: !isJoinNowAndroid,
+          panControl: false,
+          rotateControl: false,
+          scaleControl: false,
           gestureHandling: "greedy",
           styles: [
             {

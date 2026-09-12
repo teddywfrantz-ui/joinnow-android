@@ -443,6 +443,7 @@ const calculatedTier = getTierForUser(profileData || { id: undefined, username: 
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
+        data-join-now-user-profile
         className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto"
         aria-describedby="user-profile-description"
       >

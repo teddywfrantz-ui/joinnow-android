@@ -26,6 +26,7 @@ const JOINNOW_URL = /^https?:\/\//.test(configuredHost)
   ? configuredHost
   : `https://${configuredHost}`;
 const JOINNOW_ORIGIN = new URL(JOINNOW_URL).origin;
+const ANDROID_USER_AGENT = 'JoinNowAndroid/1.0';
 
 const ANDROID_BRIDGE_SCRIPT = `
   (() => {
@@ -66,7 +67,17 @@ const ANDROID_BRIDGE_SCRIPT = `
     }, true);
 
     const style = document.createElement('style');
-    style.textContent = 'header button.md\\\\:hidden{display:none!important}';
+    style.textContent = [
+      'header button.md\\\\:hidden{display:none!important}',
+      '[data-join-now-user-profile]{',
+      'width:calc(100vw - 16px)!important;',
+      'max-width:none!important;',
+      'max-height:calc(95dvh - 8px)!important;',
+      'top:5dvh!important;',
+      'transform:translateX(-50%)!important;',
+      'padding-bottom:32px!important;',
+      '}'
+    ].join('');
     document.documentElement.appendChild(style);
     window.__joinNowAndroidBridgeInstalled = true;
     sendPath();
@@ -291,6 +302,7 @@ export function JoinNowWeb() {
         ref={webView}
         source={{ uri: JOINNOW_URL }}
         style={styles.webView}
+        applicationNameForUserAgent={ANDROID_USER_AGENT}
         originWhitelist={[JOINNOW_ORIGIN]}
         injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE_SCRIPT}
         thirdPartyCookiesEnabled

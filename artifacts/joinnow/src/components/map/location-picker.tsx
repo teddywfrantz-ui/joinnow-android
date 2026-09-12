@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { GoogleMap, Circle, useJsApiLoader } from '@react-google-maps/api';
+const isJoinNowAndroid =
+  typeof navigator !== 'undefined' && navigator.userAgent.includes('JoinNowAndroid/');
+
 import { Search, Loader2 } from 'lucide-react';
 import { GOOGLE_MAPS_CONFIG } from '@/utils/google-maps';
 
@@ -246,6 +249,11 @@ export function LocationPicker({ onChange, radius, isAdjusting = false, initialL
             streetViewControl: false,
             mapTypeControl: false,
             fullscreenControl: false,
+            zoomControl: !isJoinNowAndroid,
+            keyboardShortcuts: !isJoinNowAndroid,
+            panControl: false,
+            rotateControl: false,
+            scaleControl: false,
             clickableIcons: false,
             draggable: true,
             gestureHandling: "greedy"
