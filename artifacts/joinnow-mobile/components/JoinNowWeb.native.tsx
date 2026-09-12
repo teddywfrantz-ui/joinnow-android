@@ -124,9 +124,9 @@ const ANDROID_BRIDGE_SCRIPT = `
       let nextInputId = 1;
       document.addEventListener('focusin', (event) => {
         const element = event.target;
-        if (!(element instanceof HTMLInputElement)) return;
+        if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement)) return;
         const supportedTypes = ['text', 'search', 'email', 'tel', 'url', 'number', 'password'];
-        if (!supportedTypes.includes(element.type)) return;
+        if (element instanceof HTMLInputElement && !supportedTypes.includes(element.type)) return;
 
         if (!element.dataset.joinNowAndroidInputId) {
           element.dataset.joinNowAndroidInputId = String(nextInputId++);
@@ -136,7 +136,8 @@ const ANDROID_BRIDGE_SCRIPT = `
           id: element.dataset.joinNowAndroidInputId,
           value: element.value,
           placeholder: element.placeholder || '',
-          inputType: element.type
+          inputType: element instanceof HTMLTextAreaElement ? 'textarea' : element.type,
+          multiline: element instanceof HTMLTextAreaElement
         });
       }, true);
 
@@ -201,6 +202,7 @@ type FocusedInput = {
   value: string;
   placeholder: string;
   inputType: string;
+  multiline?: boolean;
 };
 
 export function JoinNowWeb() {
@@ -313,6 +315,7 @@ export function JoinNowWeb() {
           value: message.value,
           placeholder: message.placeholder,
           inputType: message.inputType,
+          multiline: message.multiline,
         };
         focusedInputRef.current = nextInput;
         setFocusedInput(nextInput);
@@ -455,6 +458,7 @@ export function JoinNowWeb() {
         >
           <TextInput
             autoFocus
+            blurOnSubmit={!focusedInput.multiline}
             autoCapitalize={focusedInput.inputType === 'email' ? 'none' : 'sentences'}
             autoCorrect={focusedInput.inputType !== 'email'}
             keyboardType={
@@ -468,6 +472,7 @@ export function JoinNowWeb() {
                       ? 'url'
                       : 'default'
             }
+            multiline={focusedInput.multiline}
             onChangeText={(value) => {
               const nextInput = { ...focusedInput, value };
               focusedInputRef.current = nextInput;
@@ -688,11 +693,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   focusEditor: {
-    alignItems: 'center',
+    alignItems: 'stretch',
     borderRadius: 12,
     borderWidth: 1,
     elevation: 10,
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 8,
     left: 10,
     padding: 8,
@@ -707,17 +712,22 @@ const styles = StyleSheet.create({
   focusInput: {
     borderRadius: 8,
     borderWidth: 2,
-    flex: 1,
     fontFamily: 'Inter_500Medium',
     fontSize: 17,
-    height: 50,
+    maxHeight: 132,
+    minHeight: 50,
     paddingHorizontal: 14,
+    paddingVertical: 12,
+    textAlignVertical: 'top',
+    width: '100%',
   },
   doneButton: {
     alignItems: 'center',
     borderRadius: 8,
     height: 50,
     justifyContent: 'center',
+    alignSelf: 'flex-end',
+    minWidth: 84,
     paddingHorizontal: 16,
   },
   doneText: {
