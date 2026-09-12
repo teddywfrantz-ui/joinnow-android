@@ -158,6 +158,8 @@ function formatDate(dateInput: string | Date | null | undefined): string {
   }
 }
 
+let hasHandledInitialActiveMeetRedirect = false;
+
 export default function Home() {
   const queryClient = useQueryClient();
   // State hooks
@@ -175,12 +177,11 @@ export default function Home() {
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [selectedMeetupOptions, setSelectedMeetupOptions] = useState<ShowMeetupOptions | null>(null);
-  const initialLoadRef = useRef(true);
   const [validPendingRequestIds, setValidPendingRequestIds] = useState<number[]>([]);
   const [isInitialLocationSet, setIsInitialLocationSet] = useState(false);
 
   // Custom hooks with proper user state handling
-  const { user } = useUser();
+  const { user, isLoading: isUserLoading } = useUser();
   const [location, setLocation] = useLocation();
   const { meetups, isLoading: isLoadingMeetups } = useMeetups();
   const { activeMeetup, participants: activeMeetupParticipants, isLoading: isActiveMeetupLoading } = useActiveMeetup();
@@ -189,11 +190,26 @@ export default function Home() {
 
   // Add effect to redirect to active meet tab only on initial load when user has an active meetup
   useEffect(() => {
-    if (initialLoadRef.current && user && activeMeetup && location === '/map') {
-      setLocation('/active-meet');
-      initialLoadRef.current = false;
+    if (
+      hasHandledInitialActiveMeetRedirect ||
+      isUserLoading ||
+      isActiveMeetupLoading
+    ) {
+      return;
     }
-  }, [user, activeMeetup, location, setLocation]);
+
+    hasHandledInitialActiveMeetRedirect = true;
+    if (user && activeMeetup && location === '/map') {
+      setLocation('/active-meet');
+    }
+  }, [
+    user,
+    activeMeetup,
+    isUserLoading,
+    isActiveMeetupLoading,
+    location,
+    setLocation,
+  ]);
 
   // Initialize location from stored geolocation-derived coordinates on component mount
   useEffect(() => {

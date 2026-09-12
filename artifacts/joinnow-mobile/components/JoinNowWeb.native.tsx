@@ -252,7 +252,8 @@ export function JoinNowWeb() {
     setMoreOpen(false);
     setCurrentPath(path);
     webView.current?.injectJavaScript(`
-      window.location.assign(${JSON.stringify(`${JOINNOW_ORIGIN}${path}`)});
+      window.history.pushState({}, '', ${JSON.stringify(path)});
+      window.dispatchEvent(new PopStateEvent('popstate'));
       true;
     `);
   }, [finishEditing]);
