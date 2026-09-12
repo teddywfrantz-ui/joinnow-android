@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.joinnow.mobile",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon-foreground.png",
         "backgroundImage": "./assets/images/icon.png",
