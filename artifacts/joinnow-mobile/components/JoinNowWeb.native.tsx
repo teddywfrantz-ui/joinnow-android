@@ -46,6 +46,32 @@ const ANDROID_BRIDGE_SCRIPT = `
           if (button) button.setAttribute('data-join-now-android-hamburger', 'true');
         });
       };
+      const hideOptionalMapControls = () => {
+        const controlSelectors = [
+          '.gm-bundled-control',
+          '.gm-bundled-control-on-bottom',
+          '.gm-fullscreen-control',
+          '.gm-style-mtc',
+          '.gm-style-mtc-bbw',
+          '.gm-svpc'
+        ];
+        document.querySelectorAll(controlSelectors.join(',')).forEach((control) => {
+          control.setAttribute('data-join-now-android-map-control', 'true');
+        });
+        document.querySelectorAll('button[aria-label], button[title]').forEach((button) => {
+          const label = [
+            button.getAttribute('aria-label') || '',
+            button.getAttribute('title') || ''
+          ].join(' ');
+          if (/zoom|fullscreen|full screen|street view|map type|satellite|terrain|compass|rotate|tilt|camera control|keyboard shortcuts/i.test(label)) {
+            button.setAttribute('data-join-now-android-map-control', 'true');
+          }
+        });
+      };
+      const applyAndroidOnlyHiding = () => {
+        hideHamburger();
+        hideOptionalMapControls();
+      };
 
       ['pushState', 'replaceState'].forEach((method) => {
         const original = window.history[method];
@@ -74,9 +100,11 @@ const ANDROID_BRIDGE_SCRIPT = `
         attributes: true,
         attributeFilter: ['class']
       });
-      new MutationObserver(hideHamburger).observe(document.documentElement, {
+      new MutationObserver(applyAndroidOnlyHiding).observe(document.documentElement, {
         childList: true,
-        subtree: true
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-label', 'title', 'class']
       });
 
       let nextInputId = 1;
@@ -102,9 +130,12 @@ const ANDROID_BRIDGE_SCRIPT = `
       style.textContent = [
         'button[data-join-now-android-hamburger="true"],',
         'button[data-sidebar="trigger"]{display:none!important}',
+        '[data-join-now-android-map-control="true"],',
         '.gm-bundled-control,',
+        '.gm-bundled-control-on-bottom,',
         '.gm-fullscreen-control,',
         '.gm-style-mtc,',
+        '.gm-style-mtc-bbw,',
         '.gm-svpc,',
         '.gm-style-cc button,',
         'button[aria-label="Keyboard shortcuts"],',
@@ -119,7 +150,7 @@ const ANDROID_BRIDGE_SCRIPT = `
         '}'
       ].join('');
       document.documentElement.appendChild(style);
-      hideHamburger();
+      applyAndroidOnlyHiding();
       window.__joinNowAndroidBridgeInstalled = true;
       window.__joinNowAndroidSendTheme = sendTheme;
       sendPath();
