@@ -18,7 +18,7 @@ import type {
   WebViewNavigation,
 } from 'react-native-webview/lib/WebViewTypes';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useColors } from '@/hooks/useColors';
+import { setAppColorScheme, useColors } from '@/hooks/useColors';
 
 const configuredHost =
   process.env.EXPO_PUBLIC_DOMAIN || 'join-up--teddywfrantz.replit.app';
@@ -35,6 +35,10 @@ const ANDROID_BRIDGE_SCRIPT = `
       window.ReactNativeWebView?.postMessage(JSON.stringify(payload));
     };
     const sendPath = () => send({ type: 'navigation', path: window.location.pathname });
+    const sendTheme = () => send({
+      type: 'theme',
+      scheme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+    });
 
     ['pushState', 'replaceState'].forEach((method) => {
       const original = window.history[method];
@@ -46,6 +50,10 @@ const ANDROID_BRIDGE_SCRIPT = `
     });
     window.addEventListener('popstate', sendPath);
     window.addEventListener('hashchange', sendPath);
+    new MutationObserver(sendTheme).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
 
     let nextInputId = 1;
     document.addEventListener('focusin', (event) => {
@@ -81,6 +89,7 @@ const ANDROID_BRIDGE_SCRIPT = `
     document.documentElement.appendChild(style);
     window.__joinNowAndroidBridgeInstalled = true;
     sendPath();
+    sendTheme();
     return true;
   })();
 `;
@@ -203,9 +212,12 @@ export function JoinNowWeb() {
     try {
       const message = JSON.parse(event.nativeEvent.data) as
         | { type: 'navigation'; path: string }
+        | { type: 'theme'; scheme: 'light' | 'dark' }
         | ({ type: 'inputFocus' } & FocusedInput);
       if (message.type === 'navigation') {
         setCurrentPath(message.path);
+      } else if (message.type === 'theme') {
+        setAppColorScheme(message.scheme);
       } else if (message.type === 'inputFocus') {
         const nextInput = {
           id: message.id,
