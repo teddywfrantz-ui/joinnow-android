@@ -86,6 +86,7 @@ const ANDROID_BRIDGE_SCRIPT = `
           if (!/Meet Details/i.test(dialog.textContent || '')) return;
           const participantList = dialog.querySelector('[class*="h-[300px]"]');
           if (participantList) {
+            dialog.setAttribute('data-join-now-android-meet-details-dialog', 'true');
             participantList.setAttribute('data-join-now-android-participants-list', 'true');
           }
         });
@@ -173,10 +174,21 @@ const ANDROID_BRIDGE_SCRIPT = `
         'transform:translateX(-50%)!important;',
         'padding-bottom:32px!important;',
         '}',
+        '[data-join-now-android-meet-details-dialog="true"]{',
+        'top:8px!important;',
+        'bottom:8px!important;',
+        'height:auto!important;',
+        'max-height:none!important;',
+        'transform:translateX(-50%)!important;',
+        'display:flex!important;',
+        'flex-direction:column!important;',
+        'overflow:hidden!important;',
+        '}',
         '[data-join-now-android-participants-list="true"]{',
-        'height:70vh!important;',
-        'height:70dvh!important;',
-        'max-height:calc(100dvh - 140px)!important;',
+        'height:auto!important;',
+        'max-height:none!important;',
+        'min-height:0!important;',
+        'flex:1 1 auto!important;',
         '}'
       ].join('');
       document.documentElement.appendChild(style);
