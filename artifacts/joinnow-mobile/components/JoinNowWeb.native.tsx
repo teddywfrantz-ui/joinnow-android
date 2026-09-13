@@ -81,10 +81,20 @@ const ANDROID_BRIDGE_SCRIPT = `
           detail: { collapsed: true }
         }));
       };
+      const expandMeetDetailsParticipantsDialog = () => {
+        document.querySelectorAll('[role="dialog"]').forEach((dialog) => {
+          if (!/Meet Details/i.test(dialog.textContent || '')) return;
+          const participantList = dialog.querySelector('[class*="h-[300px]"]');
+          if (participantList) {
+            participantList.setAttribute('data-join-now-android-participants-list', 'true');
+          }
+        });
+      };
       const applyAndroidOnlyHiding = () => {
         hideHamburger();
         hideOptionalMapControls();
         expandParticipantViewport();
+        expandMeetDetailsParticipantsDialog();
       };
 
       ['pushState', 'replaceState'].forEach((method) => {
@@ -162,6 +172,11 @@ const ANDROID_BRIDGE_SCRIPT = `
         'top:5dvh!important;',
         'transform:translateX(-50%)!important;',
         'padding-bottom:32px!important;',
+        '}',
+        '[data-join-now-android-participants-list="true"]{',
+        'height:70vh!important;',
+        'height:70dvh!important;',
+        'max-height:calc(100dvh - 140px)!important;',
         '}'
       ].join('');
       document.documentElement.appendChild(style);
@@ -217,6 +232,7 @@ export function JoinNowWeb() {
   const [failed, setFailed] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [editorHeight, setEditorHeight] = useState(50);
 
   const finishEditing = useCallback(() => {
     const input = focusedInputRef.current;
@@ -318,6 +334,7 @@ export function JoinNowWeb() {
           multiline: message.multiline,
         };
         focusedInputRef.current = nextInput;
+        setEditorHeight(50);
         setFocusedInput(nextInput);
         setMoreOpen(false);
       }
@@ -452,7 +469,7 @@ export function JoinNowWeb() {
             {
               backgroundColor: colors.card,
               borderColor: colors.border,
-              bottom: insets.bottom + 8,
+              top: insets.top + 8,
             },
           ]}
         >
@@ -473,6 +490,12 @@ export function JoinNowWeb() {
                       : 'default'
             }
             multiline={focusedInput.multiline}
+            onContentSizeChange={(event) => {
+              if (!focusedInput.multiline) return;
+              setEditorHeight(
+                Math.min(180, Math.max(50, Math.ceil(event.nativeEvent.contentSize.height) + 4)),
+              );
+            }}
             onChangeText={(value) => {
               const nextInput = { ...focusedInput, value };
               focusedInputRef.current = nextInput;
@@ -483,6 +506,7 @@ export function JoinNowWeb() {
             placeholder={focusedInput.placeholder}
             placeholderTextColor={colors.mutedForeground}
             returnKeyType="done"
+            scrollEnabled={focusedInput.multiline && editorHeight >= 180}
             secureTextEntry={focusedInput.inputType === 'password'}
             selectionColor={colors.primary}
             style={[
@@ -491,7 +515,9 @@ export function JoinNowWeb() {
                 backgroundColor: colors.background,
                 borderColor: colors.primary,
                 color: colors.foreground,
+                height: focusedInput.multiline ? editorHeight : 50,
               },
+              focusedInput.multiline && styles.focusInputMultiline,
             ]}
             value={focusedInput.value}
           />
@@ -693,7 +719,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   focusEditor: {
-    alignItems: 'center',
+    alignItems: 'flex-start',
     borderRadius: 12,
     borderWidth: 1,
     elevation: 10,
@@ -715,8 +741,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'Inter_500Medium',
     fontSize: 17,
-    height: 50,
     paddingHorizontal: 14,
+  },
+  focusInputMultiline: {
+    paddingBottom: 12,
+    paddingTop: 12,
+    textAlignVertical: 'top',
   },
   doneButton: {
     alignItems: 'center',
