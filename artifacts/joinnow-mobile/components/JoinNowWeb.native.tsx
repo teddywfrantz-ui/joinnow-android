@@ -140,37 +140,12 @@ const ANDROID_BRIDGE_SCRIPT = `
 
       let activeInput = null;
       let activeInputCleanupTimer = null;
-      const doneButton = document.createElement('button');
-      doneButton.type = 'button';
-      doneButton.textContent = 'Done';
-      doneButton.setAttribute('data-join-now-android-input-done', 'true');
-      doneButton.hidden = true;
-      document.body.appendChild(doneButton);
 
       const resizeFocusedInput = (element) => {
         if (!(element instanceof HTMLTextAreaElement)) return;
         element.style.height = 'auto';
         element.style.height = Math.min(180, Math.max(50, element.scrollHeight)) + 'px';
       };
-      const finishFocusedInput = () => {
-        const input = activeInput;
-        if (!input) return;
-        const keyboardEvent = (name) => input.dispatchEvent(new KeyboardEvent(name, {
-          key: 'Enter',
-          code: 'Enter',
-          keyCode: 13,
-          which: 13,
-          bubbles: true,
-          cancelable: true
-        }));
-        keyboardEvent('keydown');
-        keyboardEvent('keypress');
-        keyboardEvent('keyup');
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        input.blur();
-      };
-      doneButton.addEventListener('pointerdown', (event) => event.preventDefault());
-      doneButton.addEventListener('click', finishFocusedInput);
 
       document.addEventListener('focusin', (event) => {
         const element = event.target;
@@ -185,9 +160,12 @@ const ANDROID_BRIDGE_SCRIPT = `
         }
         activeInput = element;
         element.setAttribute('data-join-now-android-focused-input', 'true');
-        element.setAttribute('enterkeyhint', 'done');
-        doneButton.hidden = false;
         resizeFocusedInput(element);
+        setTimeout(() => {
+          if (document.activeElement === element) {
+            element.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+          }
+        }, 250);
       }, true);
       document.addEventListener('input', (event) => {
         if (event.target === activeInput) resizeFocusedInput(activeInput);
@@ -199,7 +177,6 @@ const ANDROID_BRIDGE_SCRIPT = `
           activeInput?.removeAttribute('data-join-now-android-focused-input');
           activeInput?.style.removeProperty('height');
           activeInput = null;
-          doneButton.hidden = true;
         }, 100);
       }, true);
 
@@ -253,32 +230,10 @@ const ANDROID_BRIDGE_SCRIPT = `
         'fill:none!important;',
         'stroke:#92400e!important;',
         '}',
-        '[data-join-now-android-focused-input="true"]{',
-        'position:fixed!important;',
-        'top:8px!important;',
-        'right:102px!important;',
-        'left:8px!important;',
-        'width:auto!important;',
+        'textarea[data-join-now-android-focused-input="true"]{',
         'min-height:50px!important;',
         'max-height:180px!important;',
-        'z-index:2147483646!important;',
-        '}',
-        '[data-join-now-android-input-done="true"]{',
-        'position:fixed!important;',
-        'top:8px!important;',
-        'right:8px!important;',
-        'width:86px!important;',
-        'height:50px!important;',
-        'z-index:2147483647!important;',
-        'border:0!important;',
-        'border-radius:8px!important;',
-        'background:hsl(var(--primary))!important;',
-        'color:hsl(var(--primary-foreground))!important;',
-        'font-size:14px!important;',
-        'font-weight:700!important;',
-        '}',
-        '[data-join-now-android-input-done="true"][hidden]{',
-        'display:none!important;',
+        'overflow-y:auto!important;',
         '}'
       ].join('');
       document.documentElement.appendChild(style);
