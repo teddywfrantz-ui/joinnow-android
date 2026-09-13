@@ -160,6 +160,10 @@ const ANDROID_BRIDGE_SCRIPT = `
         }
         activeInput = element;
         element.setAttribute('data-join-now-android-focused-input', 'true');
+        element.parentElement?.setAttribute(
+          'data-join-now-android-focused-input-wrapper',
+          'true',
+        );
         resizeFocusedInput(element);
         setTimeout(() => {
           if (document.activeElement === element) {
@@ -175,6 +179,9 @@ const ANDROID_BRIDGE_SCRIPT = `
         activeInputCleanupTimer = setTimeout(() => {
           if (document.activeElement === activeInput) return;
           activeInput?.removeAttribute('data-join-now-android-focused-input');
+          activeInput?.parentElement?.removeAttribute(
+            'data-join-now-android-focused-input-wrapper',
+          );
           activeInput?.style.removeProperty('height');
           activeInput = null;
         }, 100);
@@ -234,6 +241,18 @@ const ANDROID_BRIDGE_SCRIPT = `
         'min-height:50px!important;',
         'max-height:180px!important;',
         'overflow-y:auto!important;',
+        '}',
+        '[data-join-now-android-focused-input-wrapper="true"]{',
+        'position:fixed!important;',
+        'top:8px!important;',
+        'left:8px!important;',
+        'right:8px!important;',
+        'width:auto!important;',
+        'z-index:2147483646!important;',
+        'padding:4px!important;',
+        'border-radius:12px!important;',
+        'background:hsl(var(--background))!important;',
+        'box-shadow:0 3px 12px rgba(0,0,0,.28)!important;',
         '}'
       ].join('');
       document.documentElement.appendChild(style);
