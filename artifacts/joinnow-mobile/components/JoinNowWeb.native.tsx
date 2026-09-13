@@ -96,12 +96,26 @@ const ANDROID_BRIDGE_SCRIPT = `
           element.setAttribute('data-join-now-android-complete-profile', 'true');
         });
       };
+      const sizeCreateMeetButton = () => {
+        document.querySelectorAll('[role="dialog"]').forEach((dialog) => {
+          if (!/Create a New Meet/i.test(dialog.textContent || '')) return;
+          const submitButton = dialog.querySelector('button[type="submit"]');
+          if (!submitButton) return;
+          submitButton.setAttribute('data-join-now-android-create-meet-button', 'true');
+          submitButton.parentElement?.setAttribute(
+            'data-join-now-android-create-meet-footer',
+            'true',
+          );
+          dialog.setAttribute('data-join-now-android-create-meet-dialog', 'true');
+        });
+      };
       const applyAndroidOnlyHiding = () => {
         hideHamburger();
         hideOptionalMapControls();
         expandParticipantViewport();
         expandMeetDetailsParticipantsDialog();
         lockCompleteProfileButtonColor();
+        sizeCreateMeetButton();
       };
 
       ['pushState', 'replaceState'].forEach((method) => {
@@ -260,6 +274,13 @@ const ANDROID_BRIDGE_SCRIPT = `
         '[data-join-now-android-complete-profile="true"] svg{',
         'fill:none!important;',
         'stroke:#92400e!important;',
+        '}',
+        '[data-join-now-android-create-meet-footer="true"]{',
+        'align-items:center!important;',
+        '}',
+        '[data-join-now-android-create-meet-button="true"]{',
+        'width:auto!important;',
+        'min-width:140px!important;',
         '}',
         'textarea[data-join-now-android-focused-input="true"]{',
         'min-height:50px!important;',
