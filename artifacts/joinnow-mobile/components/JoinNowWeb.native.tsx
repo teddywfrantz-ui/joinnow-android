@@ -91,11 +91,18 @@ const ANDROID_BRIDGE_SCRIPT = `
           }
         });
       };
+      const lockCompleteProfileButtonColor = () => {
+        document.querySelectorAll('button, a').forEach((element) => {
+          if (!/complete profile/i.test(element.textContent || '')) return;
+          element.setAttribute('data-join-now-android-complete-profile', 'true');
+        });
+      };
       const applyAndroidOnlyHiding = () => {
         hideHamburger();
         hideOptionalMapControls();
         expandParticipantViewport();
         expandMeetDetailsParticipantsDialog();
+        lockCompleteProfileButtonColor();
       };
 
       ['pushState', 'replaceState'].forEach((method) => {
@@ -189,6 +196,15 @@ const ANDROID_BRIDGE_SCRIPT = `
         'max-height:none!important;',
         'min-height:0!important;',
         'flex:1 1 auto!important;',
+        '}',
+        '[data-join-now-android-complete-profile="true"]{',
+        'color:#92400e!important;',
+        '-webkit-text-fill-color:#92400e!important;',
+        '}',
+        '[data-join-now-android-complete-profile="true"] svg,',
+        '[data-join-now-android-complete-profile="true"] span{',
+        'color:#92400e!important;',
+        'fill:currentColor!important;',
         '}'
       ].join('');
       document.documentElement.appendChild(style);
