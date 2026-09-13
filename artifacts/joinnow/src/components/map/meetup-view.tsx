@@ -284,7 +284,7 @@ export function MeetupView({
               </AlertDescription>
               
               <Button asChild variant="outline" size="sm" className="bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 hover:text-amber-900 dark:text-amber-800 dark:hover:text-amber-900 self-center">
-                <Link to="/edit-profile">
+                <Link to="/edit-profile" className="!text-amber-800 hover:!text-amber-800 dark:!text-amber-800 dark:hover:!text-amber-800">
                   <UserCircle className="mr-1 h-4 w-4" /> Complete Profile
                 </Link>
               </Button>
@@ -305,7 +305,7 @@ export function MeetupView({
               
               <div className="flex-shrink-0 ml-4">
                 <Button asChild variant="outline" size="sm" className="bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 hover:text-amber-900 dark:text-amber-800 dark:hover:text-amber-900 whitespace-nowrap">
-                  <Link to="/edit-profile">
+                  <Link to="/edit-profile" className="!text-amber-800 hover:!text-amber-800 dark:!text-amber-800 dark:hover:!text-amber-800">
                     <UserCircle className="mr-1 h-4 w-4" /> Complete Profile
                   </Link>
                 </Button>
