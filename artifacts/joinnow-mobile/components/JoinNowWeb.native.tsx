@@ -7,7 +7,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -31,7 +30,7 @@ const ANDROID_USER_AGENT = 'JoinNowAndroid/1.0';
 const ANDROID_BRIDGE_SCRIPT = `
   (() => {
     const install = () => {
-      if (window.__joinNowAndroidBridgeInstalled || !document.documentElement) return false;
+      if (window.__joinNowAndroidBridgeInstalled || !document.documentElement || !document.body) return false;
       const send = (payload) => {
         window.ReactNativeWebView?.postMessage(JSON.stringify(payload));
       };
@@ -139,24 +138,69 @@ const ANDROID_BRIDGE_SCRIPT = `
         attributeFilter: ['aria-label', 'title', 'class', 'data-state']
       });
 
-      let nextInputId = 1;
+      let activeInput = null;
+      let activeInputCleanupTimer = null;
+      const doneButton = document.createElement('button');
+      doneButton.type = 'button';
+      doneButton.textContent = 'Done';
+      doneButton.setAttribute('data-join-now-android-input-done', 'true');
+      doneButton.hidden = true;
+      document.body.appendChild(doneButton);
+
+      const resizeFocusedInput = (element) => {
+        if (!(element instanceof HTMLTextAreaElement)) return;
+        element.style.height = 'auto';
+        element.style.height = Math.min(180, Math.max(50, element.scrollHeight)) + 'px';
+      };
+      const finishFocusedInput = () => {
+        const input = activeInput;
+        if (!input) return;
+        const keyboardEvent = (name) => input.dispatchEvent(new KeyboardEvent(name, {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 13,
+          which: 13,
+          bubbles: true,
+          cancelable: true
+        }));
+        keyboardEvent('keydown');
+        keyboardEvent('keypress');
+        keyboardEvent('keyup');
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        input.blur();
+      };
+      doneButton.addEventListener('pointerdown', (event) => event.preventDefault());
+      doneButton.addEventListener('click', finishFocusedInput);
+
       document.addEventListener('focusin', (event) => {
         const element = event.target;
         if (!(element instanceof HTMLInputElement) && !(element instanceof HTMLTextAreaElement)) return;
         const supportedTypes = ['text', 'search', 'email', 'tel', 'url', 'number', 'password'];
         if (element instanceof HTMLInputElement && !supportedTypes.includes(element.type)) return;
 
-        if (!element.dataset.joinNowAndroidInputId) {
-          element.dataset.joinNowAndroidInputId = String(nextInputId++);
+        if (activeInputCleanupTimer) clearTimeout(activeInputCleanupTimer);
+        if (activeInput && activeInput !== element) {
+          activeInput.removeAttribute('data-join-now-android-focused-input');
+          activeInput.style.removeProperty('height');
         }
-        send({
-          type: 'inputFocus',
-          id: element.dataset.joinNowAndroidInputId,
-          value: element.value,
-          placeholder: element.placeholder || '',
-          inputType: element instanceof HTMLTextAreaElement ? 'textarea' : element.type,
-          multiline: element instanceof HTMLTextAreaElement
-        });
+        activeInput = element;
+        element.setAttribute('data-join-now-android-focused-input', 'true');
+        element.setAttribute('enterkeyhint', 'done');
+        doneButton.hidden = false;
+        resizeFocusedInput(element);
+      }, true);
+      document.addEventListener('input', (event) => {
+        if (event.target === activeInput) resizeFocusedInput(activeInput);
+      }, true);
+      document.addEventListener('focusout', (event) => {
+        if (event.target !== activeInput) return;
+        activeInputCleanupTimer = setTimeout(() => {
+          if (document.activeElement === activeInput) return;
+          activeInput?.removeAttribute('data-join-now-android-focused-input');
+          activeInput?.style.removeProperty('height');
+          activeInput = null;
+          doneButton.hidden = true;
+        }, 100);
       }, true);
 
       const style = document.createElement('style');
@@ -208,6 +252,33 @@ const ANDROID_BRIDGE_SCRIPT = `
         '[data-join-now-android-complete-profile="true"] svg{',
         'fill:none!important;',
         'stroke:#92400e!important;',
+        '}',
+        '[data-join-now-android-focused-input="true"]{',
+        'position:fixed!important;',
+        'top:8px!important;',
+        'right:102px!important;',
+        'left:8px!important;',
+        'width:auto!important;',
+        'min-height:50px!important;',
+        'max-height:180px!important;',
+        'z-index:2147483646!important;',
+        '}',
+        '[data-join-now-android-input-done="true"]{',
+        'position:fixed!important;',
+        'top:8px!important;',
+        'right:8px!important;',
+        'width:86px!important;',
+        'height:50px!important;',
+        'z-index:2147483647!important;',
+        'border:0!important;',
+        'border-radius:8px!important;',
+        'background:hsl(var(--primary))!important;',
+        'color:hsl(var(--primary-foreground))!important;',
+        'font-size:14px!important;',
+        'font-weight:700!important;',
+        '}',
+        '[data-join-now-android-input-done="true"][hidden]{',
+        'display:none!important;',
         '}'
       ].join('');
       document.documentElement.appendChild(style);
@@ -243,63 +314,23 @@ const MORE_TABS = [
   { label: 'Settings', path: '/settings', icon: 'settings' },
 ] as const;
 
-type FocusedInput = {
-  id: string;
-  value: string;
-  placeholder: string;
-  inputType: string;
-  multiline?: boolean;
-};
-
 export function JoinNowWeb() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const webView = useRef<any>(null);
-  const focusedInputRef = useRef<FocusedInput | null>(null);
-  const keyboardHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [currentPath, setCurrentPath] = useState('/');
-  const [focusedInput, setFocusedInput] = useState<FocusedInput | null>(null);
   const [failed, setFailed] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [editorHeight, setEditorHeight] = useState(50);
-
-  const finishEditing = useCallback(() => {
-    const input = focusedInputRef.current;
-    if (input) {
-      webView.current?.injectJavaScript(`
-        (() => {
-          const input = document.querySelector('[data-join-now-android-input-id="${input.id}"]');
-          if (!input) return true;
-          const keyboardEvent = (name) => input.dispatchEvent(new KeyboardEvent(name, {
-            key: 'Enter',
-            code: 'Enter',
-            keyCode: 13,
-            which: 13,
-            bubbles: true,
-            cancelable: true
-          }));
-          keyboardEvent('keydown');
-          keyboardEvent('keypress');
-          keyboardEvent('keyup');
-          input.dispatchEvent(new Event('change', { bubbles: true }));
-          input.blur();
-          return true;
-        })();
-      `);
-    }
-    focusedInputRef.current = null;
-    Keyboard.dismiss();
-    setFocusedInput(null);
-  }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
-        if (focusedInput) {
-          finishEditing();
+        if (keyboardVisible) {
+          webView.current?.injectJavaScript('document.activeElement?.blur(); true;');
+          Keyboard.dismiss();
           return true;
         }
         if (moreOpen) {
@@ -312,29 +343,20 @@ export function JoinNowWeb() {
       },
     );
     return () => subscription.remove();
-  }, [canGoBack, focusedInput, moreOpen]);
+  }, [canGoBack, keyboardVisible, moreOpen]);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-      if (keyboardHideTimer.current) {
-        clearTimeout(keyboardHideTimer.current);
-        keyboardHideTimer.current = null;
-      }
       setKeyboardVisible(true);
     });
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardVisible(false);
-      keyboardHideTimer.current = setTimeout(() => {
-        finishEditing();
-        keyboardHideTimer.current = null;
-      }, 350);
     });
     return () => {
-      if (keyboardHideTimer.current) clearTimeout(keyboardHideTimer.current);
       showSubscription.remove();
       hideSubscription.remove();
     };
-  }, [finishEditing]);
+  }, []);
 
   const onNavigationStateChange = useCallback((state: WebViewNavigation) => {
     setCanGoBack(state.canGoBack);
@@ -350,45 +372,20 @@ export function JoinNowWeb() {
     try {
       const message = JSON.parse(event.nativeEvent.data) as
         | { type: 'navigation'; path: string }
-        | { type: 'theme'; scheme: 'light' | 'dark' }
-        | ({ type: 'inputFocus' } & FocusedInput);
+        | { type: 'theme'; scheme: 'light' | 'dark' };
       if (message.type === 'navigation') {
         setCurrentPath(message.path);
       } else if (message.type === 'theme') {
         setAppColorScheme(message.scheme);
-      } else if (message.type === 'inputFocus') {
-        const nextInput = {
-          id: message.id,
-          value: message.value,
-          placeholder: message.placeholder,
-          inputType: message.inputType,
-          multiline: message.multiline,
-        };
-        focusedInputRef.current = nextInput;
-        setEditorHeight(50);
-        setFocusedInput(nextInput);
-        setMoreOpen(false);
       }
     } catch {
       // Ignore messages not created by the Android wrapper bridge.
     }
   }, []);
 
-  const updateWebsiteInput = useCallback((id: string, value: string) => {
-    webView.current?.injectJavaScript(`
-      (() => {
-        const input = document.querySelector('[data-join-now-android-input-id="${id}"]');
-        if (!input) return true;
-        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
-        setter?.call(input, ${JSON.stringify(value)});
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        return true;
-      })();
-    `);
-  }, []);
-
   const navigateTo = useCallback((path: string) => {
-    finishEditing();
+    webView.current?.injectJavaScript('document.activeElement?.blur(); true;');
+    Keyboard.dismiss();
     setMoreOpen(false);
     setCurrentPath(path);
     webView.current?.injectJavaScript(`
@@ -396,7 +393,7 @@ export function JoinNowWeb() {
       window.dispatchEvent(new PopStateEvent('popstate'));
       true;
     `);
-  }, [finishEditing]);
+  }, []);
 
   const isSelected = useCallback((path: string) => {
     if (path === '/map') return currentPath === '/' || currentPath.startsWith('/map');
@@ -406,7 +403,6 @@ export function JoinNowWeb() {
   const moreSelected = MORE_TABS.some((tab) => isSelected(tab.path));
   const hideNavigation =
     keyboardVisible ||
-    !!focusedInput ||
     ['/auth', '/login', '/register'].some((path) => currentPath.startsWith(path));
 
   if (failed) {
@@ -493,76 +489,6 @@ export function JoinNowWeb() {
           </View>
         )}
       />
-      {focusedInput ? (
-        <View
-          style={[
-            styles.focusEditor,
-            {
-              backgroundColor: colors.card,
-              borderColor: colors.border,
-              top: insets.top + 8,
-            },
-          ]}
-        >
-          <TextInput
-            autoFocus
-            blurOnSubmit={!focusedInput.multiline}
-            autoCapitalize={focusedInput.inputType === 'email' ? 'none' : 'sentences'}
-            autoCorrect={focusedInput.inputType !== 'email'}
-            keyboardType={
-              focusedInput.inputType === 'email'
-                ? 'email-address'
-                : focusedInput.inputType === 'tel'
-                  ? 'phone-pad'
-                  : focusedInput.inputType === 'number'
-                    ? 'numeric'
-                    : focusedInput.inputType === 'url'
-                      ? 'url'
-                      : 'default'
-            }
-            multiline={focusedInput.multiline}
-            onContentSizeChange={(event) => {
-              if (!focusedInput.multiline) return;
-              setEditorHeight(
-                Math.min(180, Math.max(50, Math.ceil(event.nativeEvent.contentSize.height) + 4)),
-              );
-            }}
-            onChangeText={(value) => {
-              const nextInput = { ...focusedInput, value };
-              focusedInputRef.current = nextInput;
-              setFocusedInput(nextInput);
-              updateWebsiteInput(focusedInput.id, value);
-            }}
-            onSubmitEditing={finishEditing}
-            placeholder={focusedInput.placeholder}
-            placeholderTextColor={colors.mutedForeground}
-            returnKeyType="done"
-            scrollEnabled={focusedInput.multiline && editorHeight >= 180}
-            secureTextEntry={focusedInput.inputType === 'password'}
-            selectionColor={colors.primary}
-            style={[
-              styles.focusInput,
-              {
-                backgroundColor: colors.background,
-                borderColor: colors.primary,
-                color: colors.foreground,
-                height: focusedInput.multiline ? editorHeight : 50,
-              },
-              focusedInput.multiline && styles.focusInputMultiline,
-            ]}
-            value={focusedInput.value}
-          />
-          <Pressable
-            accessibilityRole="button"
-            onPress={finishEditing}
-            style={[styles.doneButton, { backgroundColor: colors.primary }]}
-          >
-            <Text style={[styles.doneText, { color: colors.primaryForeground }]}>
-              Done
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
       {!hideNavigation ? (
         <>
           {moreOpen ? (
@@ -748,47 +674,6 @@ const styles = StyleSheet.create({
   moreText: {
     fontFamily: 'Inter_600SemiBold',
     fontSize: 15,
-  },
-  focusEditor: {
-    alignItems: 'flex-start',
-    borderRadius: 12,
-    borderWidth: 1,
-    elevation: 10,
-    flexDirection: 'row',
-    gap: 8,
-    left: 4,
-    padding: 8,
-    position: 'absolute',
-    right: 4,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    zIndex: 30,
-  },
-  focusInput: {
-    borderRadius: 8,
-    borderWidth: 2,
-    flex: 1,
-    fontFamily: 'Inter_500Medium',
-    fontSize: 17,
-    paddingHorizontal: 14,
-  },
-  focusInputMultiline: {
-    paddingBottom: 12,
-    paddingTop: 12,
-    textAlignVertical: 'top',
-  },
-  doneButton: {
-    alignItems: 'center',
-    borderRadius: 8,
-    height: 50,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  doneText: {
-    fontFamily: 'Inter_700Bold',
-    fontSize: 14,
   },
   error: {
     flex: 1,
