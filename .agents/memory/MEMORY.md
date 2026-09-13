@@ -1,0 +1,8 @@
+- [Full-stack migration helper gaps](fullstack-migration-helper-gaps.md) — verify top-level route entry files and public assets after helper-script copies.
+- [Server-only auth secrets](server-only-auth-secrets.md) — JWT and session signing must fail closed without a private server-only secret.
+- [Android parity strategy](android-parity-strategy.md) — keep Android identical to JoinNow web through a thin wrapper, not a separate native redesign.
+- [Android WebView bridge safeguards](android-webview-bridge-safeguards.md) — preserve same-origin navigation and native-to-HTML submit semantics in wrapper enhancements.
+- [GitHub empty-repo uploads](github-empty-repo-uploads.md) — initialize a branch before using Git Data blob/tree APIs through the connector.
+- [GitHub sync fallback](github-sync-fallback.md) — connector API and CLI auth can fail independently; preserve local commits and use the Git pane to sync.
+- [Binary connector uploads](binary-connector-uploads.md) — read binary files inside the impure upload call; durable shell output can silently truncate base64 payloads.
+- [Complete Profile button contrast](complete-profile-button-contrast.md) — keep the warning action label dark in both light and dark themes.

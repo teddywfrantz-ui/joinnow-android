@@ -283,7 +283,7 @@ export function MeetupView({
                 You may not be seeing all meets due to filters. Complete your profile to ensure visibility.
               </AlertDescription>
               
-              <Button asChild variant="outline" size="sm" className="bg-amber-50 border-amber-200 hover:bg-amber-100 self-center">
+              <Button asChild variant="outline" size="sm" className="bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 hover:text-amber-900 dark:text-amber-800 dark:hover:text-amber-900 self-center">
                 <Link to="/edit-profile">
                   <UserCircle className="mr-1 h-4 w-4" /> Complete Profile
                 </Link>
@@ -304,7 +304,7 @@ export function MeetupView({
               </div>
               
               <div className="flex-shrink-0 ml-4">
-                <Button asChild variant="outline" size="sm" className="bg-amber-50 border-amber-200 hover:bg-amber-100 whitespace-nowrap">
+                <Button asChild variant="outline" size="sm" className="bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100 hover:text-amber-900 dark:text-amber-800 dark:hover:text-amber-900 whitespace-nowrap">
                   <Link to="/edit-profile">
                     <UserCircle className="mr-1 h-4 w-4" /> Complete Profile
                   </Link>
