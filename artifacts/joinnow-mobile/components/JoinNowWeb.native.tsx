@@ -139,6 +139,7 @@ const ANDROID_BRIDGE_SCRIPT = `
       });
 
       let activeInput = null;
+      let activeInputToolbar = null;
       let activeInputCleanupTimer = null;
 
       const resizeFocusedInput = (element) => {
@@ -156,14 +157,33 @@ const ANDROID_BRIDGE_SCRIPT = `
         if (activeInputCleanupTimer) clearTimeout(activeInputCleanupTimer);
         if (activeInput && activeInput !== element) {
           activeInput.removeAttribute('data-join-now-android-focused-input');
+          activeInput.parentElement?.removeAttribute(
+            'data-join-now-android-focused-input-wrapper',
+          );
+          activeInputToolbar?.removeAttribute(
+            'data-join-now-android-focused-input-toolbar',
+          );
           activeInput.style.removeProperty('height');
+          activeInputToolbar = null;
         }
         activeInput = element;
         element.setAttribute('data-join-now-android-focused-input', 'true');
-        element.parentElement?.setAttribute(
-          'data-join-now-android-focused-input-wrapper',
-          'true',
-        );
+        const isMeetupSearch =
+          element instanceof HTMLInputElement &&
+          element.placeholder === 'Search Meets...';
+        if (isMeetupSearch) {
+          const inputWrapper = element.parentElement;
+          inputWrapper?.setAttribute(
+            'data-join-now-android-focused-input-wrapper',
+            'true',
+          );
+          activeInputToolbar =
+            inputWrapper?.parentElement?.parentElement?.parentElement || null;
+          activeInputToolbar?.setAttribute(
+            'data-join-now-android-focused-input-toolbar',
+            'true',
+          );
+        }
         resizeFocusedInput(element);
         setTimeout(() => {
           if (document.activeElement === element) {
@@ -182,8 +202,12 @@ const ANDROID_BRIDGE_SCRIPT = `
           activeInput?.parentElement?.removeAttribute(
             'data-join-now-android-focused-input-wrapper',
           );
+          activeInputToolbar?.removeAttribute(
+            'data-join-now-android-focused-input-toolbar',
+          );
           activeInput?.style.removeProperty('height');
           activeInput = null;
+          activeInputToolbar = null;
         }, 100);
       }, true);
 
@@ -242,15 +266,16 @@ const ANDROID_BRIDGE_SCRIPT = `
         'max-height:180px!important;',
         'overflow-y:auto!important;',
         '}',
+        '[data-join-now-android-focused-input-toolbar="true"]{',
+        'position:relative!important;',
+        '}',
         '[data-join-now-android-focused-input-wrapper="true"]{',
-        'position:fixed!important;',
-        'top:8px!important;',
-        'left:8px!important;',
-        'right:8px!important;',
+        'position:absolute!important;',
+        'top:0!important;',
+        'left:0!important;',
+        'right:0!important;',
         'width:auto!important;',
         'z-index:2147483646!important;',
-        'padding:4px!important;',
-        'border-radius:12px!important;',
         'background:hsl(var(--background))!important;',
         'box-shadow:0 3px 12px rgba(0,0,0,.28)!important;',
         '}'
