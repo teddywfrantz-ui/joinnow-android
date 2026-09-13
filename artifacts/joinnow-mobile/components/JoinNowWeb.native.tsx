@@ -204,7 +204,10 @@ const ANDROID_BRIDGE_SCRIPT = `
         '[data-join-now-android-complete-profile="true"] svg,',
         '[data-join-now-android-complete-profile="true"] span{',
         'color:#92400e!important;',
-        'fill:currentColor!important;',
+        '}',
+        '[data-join-now-android-complete-profile="true"] svg{',
+        'fill:none!important;',
+        'stroke:#92400e!important;',
         '}'
       ].join('');
       document.documentElement.appendChild(style);
