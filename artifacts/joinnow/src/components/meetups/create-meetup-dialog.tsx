@@ -178,19 +178,23 @@ export function CreateMeetupDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-[425px] h-[90vh] p-0 flex flex-col" 
+        className="h-[90dvh] max-h-[90dvh] p-0 sm:max-w-[425px] !flex min-h-0 flex-col gap-0 overflow-hidden"
         onClick={handleDialogClick}
         onPointerDownOutside={(e) => e.preventDefault()}
       >
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="h-full flex flex-col" onClick={handleDialogClick}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex min-h-0 flex-1 flex-col"
+            onClick={handleDialogClick}
+          >
             <div className="flex-shrink-0 border-b">
               <DialogHeader className="px-6 py-4">
                 <DialogTitle>Create a New Meet</DialogTitle>
               </DialogHeader>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
               <div className="space-y-4" onClick={handleDialogClick}>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Location</label>
@@ -422,10 +426,11 @@ export function CreateMeetupDialog({
               </div>
             </div>
 
-            <div className="flex-shrink-0 border-t p-6">
+            <div className="flex flex-shrink-0 items-center justify-center border-t bg-background px-6 py-4">
               <Button
                 type="submit"
-                className="w-full"
+                className="w-auto min-w-44"
+                data-testid="button-create-meet"
                 disabled={form.formState.isSubmitting}
                 onClick={handleDialogClick}
               >
