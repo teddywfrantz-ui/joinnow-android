@@ -45,6 +45,27 @@ const ANDROID_BRIDGE_SCRIPT = `
           if (button) button.setAttribute('data-join-now-android-hamburger', 'true');
         });
       };
+      const hideEmbeddedBottomNavigation = () => {
+        document.querySelectorAll('nav').forEach((nav) => {
+          const text = (nav.textContent || '').replace(/\\s+/g, ' ').trim();
+          const isJoinNowBottomNavigation =
+            nav.hasAttribute('data-join-now-mobile-bottom-nav') ||
+            (
+              /\\bMap\\b/.test(text) &&
+              /\\bActive\\b/.test(text) &&
+              /\\bMessages\\b/.test(text) &&
+              /\\bGroup\\b/.test(text) &&
+              /\\bMore\\b/.test(text) &&
+              (
+                window.getComputedStyle(nav).position === 'fixed' ||
+                nav.classList.contains('bottom-0')
+              )
+            );
+          if (!isJoinNowBottomNavigation) return;
+          nav.setAttribute('data-join-now-android-embedded-bottom-nav', 'true');
+          nav.style.setProperty('display', 'none', 'important');
+        });
+      };
       const hideOptionalMapControls = () => {
         const controlSelectors = [
           '.gm-bundled-control',
@@ -111,6 +132,7 @@ const ANDROID_BRIDGE_SCRIPT = `
       };
       const applyAndroidOnlyHiding = () => {
         hideHamburger();
+        hideEmbeddedBottomNavigation();
         hideOptionalMapControls();
         expandParticipantViewport();
         expandMeetDetailsParticipantsDialog();
@@ -229,7 +251,8 @@ const ANDROID_BRIDGE_SCRIPT = `
       style.textContent = [
         'button[data-join-now-android-hamburger="true"],',
         'button[data-sidebar="trigger"],',
-        '[data-join-now-mobile-bottom-nav]{display:none!important}',
+        '[data-join-now-mobile-bottom-nav],',
+        '[data-join-now-android-embedded-bottom-nav="true"]{display:none!important}',
         '[data-join-now-android-map-control="true"],',
         '.gm-bundled-control,',
         '.gm-bundled-control-on-bottom,',
