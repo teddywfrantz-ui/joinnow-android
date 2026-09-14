@@ -9,6 +9,7 @@ import {
   UserCircle2,
   UserCircle,
   Trophy,
+  MessageSquare,
 } from "lucide-react";
 
 interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {
@@ -24,15 +25,22 @@ export function SidebarNav({ className, onNavigate, ...props }: SidebarNavProps)
       title: "Map",
       icon: Map,
       href: "map",
-      description: "Discover nearby meetups",
+      description: "Discover nearby Meets",
       iconColor: "text-blue-500"
     },
     {
       title: "Active Meet",
       icon: Star,
       href: "active-meet",
-      description: "Current meetup details",
+      description: "Current Meet details",
       iconColor: "text-yellow-500"
+    },
+    {
+      title: "Messages",
+      icon: MessageSquare,
+      href: "messages",
+      description: "Group and Meet conversations",
+      iconColor: "text-indigo-500"
     },
     {
       title: "Profile",
@@ -52,7 +60,7 @@ export function SidebarNav({ className, onNavigate, ...props }: SidebarNavProps)
       title: "Group",
       icon: Users2,
       href: "groups",
-      description: "Your meetup groups",
+      description: "Your Meet groups",
       iconColor: "text-purple-500"
     },
     {

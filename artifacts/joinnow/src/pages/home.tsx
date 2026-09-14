@@ -26,6 +26,7 @@ import { Card } from '@/components/ui/card';
 import { Avatar } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LocationSearch } from "@/components/search/location-search";
+import { GroupsTab } from "@/components/groups/groups-tab";
 
 
 interface TraitCardProps {
@@ -158,13 +159,12 @@ function formatDate(dateInput: string | Date | null | undefined): string {
   }
 }
 
-let hasHandledInitialActiveMeetRedirect = false;
-
 export default function Home() {
   const queryClient = useQueryClient();
   // State hooks
   const [selectedMeetup, setSelectedMeetup] = useState<Meetup | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [groupIdForCreate, setGroupIdForCreate] = useState<number | null>(null);
   const [filters, setFilters] = useState<MeetupFiltersType>({
     searchQuery: '',
     hideFullMeetups: false,
@@ -181,35 +181,44 @@ export default function Home() {
   const [isInitialLocationSet, setIsInitialLocationSet] = useState(false);
 
   // Custom hooks with proper user state handling
-  const { user, isLoading: isUserLoading } = useUser();
+  const { user } = useUser();
   const [location, setLocation] = useLocation();
   const { meetups, isLoading: isLoadingMeetups } = useMeetups();
   const { activeMeetup, participants: activeMeetupParticipants, isLoading: isActiveMeetupLoading } = useActiveMeetup();
   const { toast } = useToast();
   const { pendingRequests } = usePendingRequests();
+  const { data: currentGroups = [] } = useQuery<Array<{
+    pendingMeetupRequests?: Array<{ meetupId: number }>;
+  }>>({
+    queryKey: ["/api/groups"],
+    queryFn: async () => {
+      const response = await fetch("/api/groups", { credentials: "include" });
+      if (response.status === 401) return [];
+      if (!response.ok) throw new Error("Failed to load current group");
+      return response.json();
+    },
+    enabled: Boolean(user),
+    staleTime: 0,
+    refetchOnMount: true,
+  });
 
-  // Add effect to redirect to active meet tab only on initial load when user has an active meetup
+  // Group creation arrives here through a real route intent rather than a
+  // timeout tied to a component that may already have unmounted.  Consume the
+  // query once the map route is active, then clean the URL without changing
+  // the current screen.
   useEffect(() => {
-    if (
-      hasHandledInitialActiveMeetRedirect ||
-      isUserLoading ||
-      isActiveMeetupLoading
-    ) {
-      return;
-    }
-
-    hasHandledInitialActiveMeetRedirect = true;
-    if (user && activeMeetup && location === '/map') {
-      setLocation('/active-meet');
-    }
-  }, [
-    user,
-    activeMeetup,
-    isUserLoading,
-    isActiveMeetupLoading,
-    location,
-    setLocation,
-  ]);
+    if (location.split("?")[0] !== "/map") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("createMeetup") !== "1") return;
+    const parsedGroupId = Number(params.get("groupId"));
+    const nextGroupId =
+      Number.isInteger(parsedGroupId) && parsedGroupId > 0
+        ? parsedGroupId
+        : null;
+    setGroupIdForCreate(nextGroupId);
+    setShowCreateDialog(true);
+    window.history.replaceState({}, "", "/map");
+  }, [location]);
 
   // Initialize location from stored geolocation-derived coordinates on component mount
   useEffect(() => {
@@ -525,6 +534,13 @@ export default function Home() {
       setValidPendingRequestIds([]);
     }
   }, [user, myPendingRequests]);
+
+  const groupPendingRequestIds = currentGroups.flatMap((group) =>
+    (group.pendingMeetupRequests ?? []).map((request) => request.meetupId),
+  );
+  const allPendingRequestIds = Array.from(
+    new Set([...validPendingRequestIds, ...groupPendingRequestIds]),
+  );
   
   // Log current validPendingRequestIds for debugging
   useEffect(() => {
@@ -872,22 +888,22 @@ export default function Home() {
   const handleCreateMeetupClick = () => {
     if (activeMeetup) {
       toast({
-        title: "Cannot Create Meetup",
-        description: "You can only be in one meetup at a time. Leave your current meetup first.",
+        title: "Cannot Create Meet",
+        description: "You can only be in one Meet at a time. Leave your current Meet first.",
         variant: "destructive"
       });
     } else {
+      setGroupIdForCreate(null);
       setShowCreateDialog(true);
     }
   };
 
   const handleAfterMeetupCreate = () => {
     setShowCreateDialog(false);
-    // Navigate to active meet tab after creation
-    // Use a small timeout to ensure navigation state is updated properly
-    setTimeout(() => {
-      setLocation('active-meet');
-    }, 50);
+    setGroupIdForCreate(null);
+    // Navigate immediately after the mutation settles; no timeout race with
+    // the dialog or route lifecycle.
+    setLocation('/active-meet');
   };
 
   // Add profile related queries
@@ -1058,7 +1074,7 @@ export default function Home() {
                 userLocation={userLocation}
                 searchRadius={filters.searchRadiusMiles}
                 activeMeetupId={activeMeetup?.id}
-                pendingRequestIds={validPendingRequestIds}
+                 pendingRequestIds={allPendingRequestIds}
                 currentUser={user}
                 onAfterJoin={() => {
                   queryClient.invalidateQueries({ queryKey: ['/api/meetups'] });
@@ -1167,28 +1183,21 @@ export default function Home() {
         );
 
       case 'groups':
-        return (
-          <div className="p-4 space-y-4">
-            <h2 className="text-2xl font-bold">Group</h2>
-            {!user ? (
-              <div className="flex flex-col items-center justify-center p-8 text-center">
-                <UserCircle2 className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold">Sign in to access groups</h3>
-                <p className="text-muted-foreground mb-4">
-                  Connect with friends and join group activities
-                </p>
-                <Link to="/auth" className="inline-flex">
-                  <Button className="gap-2">
-                    <LogIn className="h-4 w-4" />
-                    Sign In
-                  </Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="text-center text-muted-foreground">
-                Group feature coming soon!
-              </div>
-            )}
+        return user ? (
+          <GroupsTab />
+        ) : (
+          <div className="flex flex-col items-center justify-center p-8 text-center">
+            <UserCircle2 className="mb-4 h-12 w-12 text-muted-foreground" />
+            <h3 className="text-lg font-semibold">Sign in to access groups</h3>
+            <p className="mb-4 text-muted-foreground">
+              Connect with friends and join group activities
+            </p>
+            <Link to="/auth" className="inline-flex">
+              <Button className="gap-2">
+                <LogIn className="h-4 w-4" />
+                Sign In
+              </Button>
+            </Link>
           </div>
         );
       case 'friends':
@@ -1400,8 +1409,12 @@ export default function Home() {
 
       <CreateMeetupDialog
         open={showCreateDialog}
-        onOpenChange={setShowCreateDialog}
+        onOpenChange={(open) => {
+          setShowCreateDialog(open);
+          if (!open) setGroupIdForCreate(null);
+        }}
         initialLocation={currentMapCenter}
+        groupId={groupIdForCreate}
         onAfterCreate={handleAfterMeetupCreate}
       />
     </MainLayout>

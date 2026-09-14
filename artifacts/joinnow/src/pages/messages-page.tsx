@@ -68,8 +68,8 @@ function statusLabel(status: ConversationStatus) {
 function statusMessage(conversation: ConversationSummary) {
   if (conversation.kind === "meetup") {
     return conversation.status === "completed"
-      ? "This meetup has completed. This conversation is read-only."
-      : "You left this meetup. Messages after you left are hidden.";
+      ? "This Meet has completed. This conversation is read-only."
+      : "You left this Meet. Messages after you left are hidden.";
   }
   switch (conversation.status) {
     case "disbanded":
@@ -172,7 +172,7 @@ function MessagesContent({ user }: { user: User }) {
                 No conversations yet
               </h2>
               <p className="mb-8 max-w-sm text-sm text-muted-foreground">
-                Join a group or meetup to start chatting.
+                Join a group or Meet to start chatting.
               </p>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <Button
@@ -217,7 +217,7 @@ function MessagesContent({ user }: { user: User }) {
                           variant="secondary"
                           className="bg-primary/10 text-[10px] font-semibold uppercase text-primary"
                         >
-                          {conversation.kind === "group" ? "Group" : "Meetup"}
+                          {conversation.kind === "group" ? "Group" : "Meet"}
                         </Badge>
                         {conversation.status !== "active" && (
                           <Badge
@@ -342,7 +342,7 @@ export default function MessagesPage() {
             Your conversations live here
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to open your group and meetup messages.
+            Sign in to open your group and Meet messages.
           </p>
           <Button className="mt-6" onClick={() => setLocation("/auth")}>
             Sign in

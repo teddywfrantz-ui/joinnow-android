@@ -834,9 +834,9 @@ export default function SettingsPage() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
-                          <FormLabel className="text-base">Meetup Reminders</FormLabel>
+        <FormLabel className="text-base">Meet Reminders</FormLabel>
                           <FormDescription>
-                            Get reminders about upcoming meetups
+          Get reminders about upcoming Meets
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -876,9 +876,9 @@ export default function SettingsPage() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
-                          <FormLabel className="text-base">Meetup Join Requests</FormLabel>
+        <FormLabel className="text-base">Meet Join Requests</FormLabel>
                           <FormDescription>
-                            Get notified when someone requests to join your meetup
+          Get notified when someone requests to join your Meet
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -897,9 +897,9 @@ export default function SettingsPage() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
-                          <FormLabel className="text-base">Nearby Meetups</FormLabel>
+        <FormLabel className="text-base">Nearby Meets</FormLabel>
                           <FormDescription>
-                            Get notified about new meetups in your area
+          Get notified about new Meets in your area
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -963,7 +963,7 @@ export default function SettingsPage() {
                         <div className="space-y-0.5">
                           <FormLabel className="text-base">Location Sharing</FormLabel>
                           <FormDescription>
-                            Share your location with others in active meetups
+        Share your location with others in active Meets
                           </FormDescription>
                         </div>
                         <FormControl>

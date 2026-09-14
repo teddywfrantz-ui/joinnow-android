@@ -79,7 +79,7 @@ export function JoinRequestsDialog({ open, onOpenChange }: JoinRequestsDialogPro
                     <div>
                       <div className="font-medium">{request.username}</div>
                       <div className="text-sm text-muted-foreground">
-                        For meetup: {request.meetup_title}
+                        For Meet: {request.meetup_title}
                       </div>
                       <div className="text-sm text-foreground/80 mt-1">
                         "{request.message || "No message provided"}"

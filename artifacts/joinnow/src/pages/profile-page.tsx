@@ -146,6 +146,16 @@ interface ProfileData {
   profilePicture?: string | null;
 }
 
+const profileRedirectRoutes = [
+  "map",
+  "active-meet",
+  "friends",
+  "groups",
+  "settings",
+  "leaderboard",
+  "leaderboards",
+];
+
 // Simulated achievements that would typically come from the backend
 interface Achievement {
   id: number;
@@ -288,49 +298,16 @@ export default function ProfilePage() {
   // If the userId is not a valid profile ID but matches a route, redirect
   useEffect(() => {
     if (userId && !isNumericUserId && userId !== "me") {
-      const possibleRoutes = ["map", "active-meet", "friends", "groups", "settings", "leaderboard", "leaderboards"];
-      if (possibleRoutes.includes(userId)) {
+      if (profileRedirectRoutes.includes(userId)) {
         console.log("ProfilePage - detected route instead of userId, redirecting to:", userId);
         navigate(`/${userId}`);
       }
     }
   }, [userId, navigate]);
   
-  // If no valid user ID is specified and not logged in, show a helpful message
-  if (targetUserId === null) {
-    console.log("ProfilePage - No valid userId found, showing sign-in message");
-    return (
-      <div className="p-4 space-y-4">
-        <h2 className="text-2xl font-bold">Profile</h2>
-        <div className="flex flex-col items-center justify-center p-8 text-center">
-          <UserCircle2 className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold">Sign in to access profiles</h3>
-          <p className="text-muted-foreground mb-4">
-            Adjust your profile and view items like your Traits, and Meet history
-          </p>
-          <Link to="/auth" className="inline-flex">
-            <Button className="gap-2">
-              <LogIn className="h-4 w-4" />
-              Sign In
-            </Button>
-          </Link>
-        </div>
-      </div>
-    );
-  }
-  
   // Convert to numeric ID and validate
   const numericUserId = typeof targetUserId === 'string' ? parseInt(targetUserId) : targetUserId;
   const isValidId = numericUserId !== null && !isNaN(numericUserId as number);
-  
-  // Redirect if we got an invalid ID but valid route
-  if (!isValidId && userId) {
-    const possibleRoutes = ["map", "active-meet", "friends", "groups", "settings", "leaderboard", "leaderboards"];
-    if (possibleRoutes.includes(userId)) {
-      navigate(`/${userId}`);
-      return null; // Return null while navigating to prevent data fetching
-    }
-  }
   
   console.log("ProfilePage - Final numeric userId:", numericUserId, "isValidId:", isValidId);
   
@@ -339,8 +316,8 @@ export default function ProfilePage() {
     // Bronze tier (beginner)
     {
       id: 1,
-      name: "Meetup Newbie",
-      description: "Attended your first meetup",
+      name: "Meet Newbie",
+      description: "Attended your first Meet",
       icon: <MapPin className="h-5 w-5 text-amber-600" />,
       tier: "bronze",
       isUnlocked: true,
@@ -358,7 +335,7 @@ export default function ProfilePage() {
     {
       id: 3,
       name: "Host Debut",
-      description: "Created your first meetup",
+      description: "Created your first Meet",
       icon: <User className="h-5 w-5 text-amber-600" />,
       tier: "bronze",
       isUnlocked: true,
@@ -385,7 +362,7 @@ export default function ProfilePage() {
     {
       id: 31,
       name: "Social Starter",
-      description: "Send your first chat message in a meetup",
+      description: "Send your first chat message in a Meet",
       icon: <MessageCircle className="h-5 w-5 text-amber-600" />,
       tier: "bronze",
       isUnlocked: true,
@@ -396,7 +373,7 @@ export default function ProfilePage() {
     {
       id: 6,
       name: "Social Butterfly",
-      description: "Attended 5 meetups",
+      description: "Attended 5 Meets",
       icon: <Users className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: true,
@@ -405,7 +382,7 @@ export default function ProfilePage() {
     {
       id: 7,
       name: "Trendsetter",
-      description: "Created a meetup that reached maximum capacity",
+      description: "Created a Meet that reached maximum capacity",
       icon: <Star className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: false,
@@ -415,7 +392,7 @@ export default function ProfilePage() {
     {
       id: 8,
       name: "Conversation Starter",
-      description: "Sent 50 chat messages across all meetups",
+      description: "Sent 50 chat messages across all Meets",
       icon: <MessageSquare className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: false,
@@ -425,7 +402,7 @@ export default function ProfilePage() {
     {
       id: 19,
       name: "Regular Attendee",
-      description: "Join meetups in 3 different themes",
+      description: "Join Meets in 3 different themes",
       icon: <Layout className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: false,
@@ -445,7 +422,7 @@ export default function ProfilePage() {
     {
       id: 21,
       name: "Event Planner",
-      description: "Create 3 meetups with different themes",
+      description: "Create 3 Meets with different themes",
       icon: <Calendar className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: false,
@@ -456,8 +433,8 @@ export default function ProfilePage() {
     // Gold tier (advanced)
     {
       id: 9,
-      name: "Meetup Maven",
-      description: "Attended 20 meetups",
+      name: "Meet Maven",
+      description: "Attended 20 Meets",
       icon: <Activity className="h-5 w-5 text-yellow-500" />,
       tier: "gold",
       isUnlocked: true, // Should be unlocked since they've attended 20 meetups
@@ -487,8 +464,8 @@ export default function ProfilePage() {
     },
     {
       id: 22,
-      name: "Meetup Mentor",
-      description: "Successfully host 5 different meetups",
+      name: "Meet Mentor",
+      description: "Successfully host 5 different Meets",
       icon: <PenTool className="h-5 w-5 text-yellow-500" />,
       tier: "gold",
       isUnlocked: false,
@@ -498,7 +475,7 @@ export default function ProfilePage() {
     {
       id: 23,
       name: "Diverse Explorer",
-      description: "Attend meetups in 5 different locations",
+      description: "Attend Meets in 5 different locations",
       icon: <Map className="h-5 w-5 text-yellow-500" />,
       tier: "gold",
       isUnlocked: false,
@@ -508,7 +485,7 @@ export default function ProfilePage() {
     {
       id: 24,
       name: "Community Contributor",
-      description: "Rate 15 participants after meetups",
+      description: "Rate 15 participants after Meets",
       icon: <Star className="h-5 w-5 text-yellow-500" />,
       tier: "gold",
       isUnlocked: false,
@@ -520,7 +497,7 @@ export default function ProfilePage() {
     {
       id: 12,
       name: "Local Legend",
-      description: "Host 10 successful meetups with full attendance",
+      description: "Host 10 successful Meets with full attendance",
       icon: <Zap className="h-5 w-5 text-blue-500" />,
       tier: "platinum",
       isUnlocked: false,
@@ -540,7 +517,7 @@ export default function ProfilePage() {
     {
       id: 14,
       name: "Community Pillar",
-      description: "Participate in 50 meetups across all categories",
+      description: "Participate in 50 Meets across all categories",
       icon: <Crown className="h-5 w-5 text-blue-500" />,
       tier: "platinum",
       isUnlocked: false,
@@ -559,8 +536,8 @@ export default function ProfilePage() {
     },
     {
       id: 26,
-      name: "Meetup Ambassador",
-      description: "Successfully invite 20 users to your meetups",
+      name: "Meet Ambassador",
+      description: "Successfully invite 20 users to your Meets",
       icon: <UsersRound className="h-5 w-5 text-blue-500" />,
       tier: "platinum",
       isUnlocked: false,
@@ -570,7 +547,7 @@ export default function ProfilePage() {
     {
       id: 27,
       name: "Discussion Leader",
-      description: "Send 200 chat messages across all meetups",
+      description: "Send 200 chat messages across all Meets",
       icon: <MessagesSquare className="h-5 w-5 text-blue-500" />,
       tier: "platinum",
       isUnlocked: false,
@@ -592,7 +569,7 @@ export default function ProfilePage() {
     {
       id: 17,
       name: "Meet Maestro",
-      description: "Participate in 100 meetups with perfect attendance",
+      description: "Participate in 100 Meets with perfect attendance",
       icon: <Trophy className="h-5 w-5 text-purple-500" />,
       tier: "diamond",
       isUnlocked: false,
@@ -612,7 +589,7 @@ export default function ProfilePage() {
     {
       id: 28,
       name: "Master Host",
-      description: "Create and successfully host 25 meetups",
+      description: "Create and successfully host 25 Meets",
       icon: <Crown className="h-5 w-5 text-purple-500" />,
       tier: "diamond",
       isUnlocked: false,
@@ -622,7 +599,7 @@ export default function ProfilePage() {
     {
       id: 29,
       name: "Global Explorer",
-      description: "Attend meetups in 10 different regions",
+      description: "Attend Meets in 10 different regions",
       icon: <Globe className="h-5 w-5 text-purple-500" />,
       tier: "diamond",
       isUnlocked: false,
@@ -632,7 +609,7 @@ export default function ProfilePage() {
     {
       id: 30,
       name: "Esteemed Veteran",
-      description: "Be a member for 1 year with at least 50 meetups attended",
+      description: "Be a member for 1 year with at least 50 Meets attended",
       icon: <Award className="h-5 w-5 text-purple-500" />,
       tier: "diamond",
       isUnlocked: false,
@@ -802,6 +779,35 @@ export default function ProfilePage() {
     enabled: isValidId,
     retry: 2
   });
+
+  // Keep route-specific branches below every hook so navigating between
+  // profile routes never changes the component's hook order.
+  if (userId && !isNumericUserId && profileRedirectRoutes.includes(userId)) {
+    return null;
+  }
+
+  // If no valid user ID is specified and not logged in, show a helpful message
+  if (targetUserId === null) {
+    console.log("ProfilePage - No valid userId found, showing sign-in message");
+    return (
+      <div className="p-4 space-y-4">
+        <h2 className="text-2xl font-bold">Profile</h2>
+        <div className="flex flex-col items-center justify-center p-8 text-center">
+          <UserCircle2 className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold">Sign in to access profiles</h3>
+          <p className="text-muted-foreground mb-4">
+            Adjust your profile and view items like your Traits, and Meet history
+          </p>
+          <Link to="/auth" className="inline-flex">
+            <Button className="gap-2">
+              <LogIn className="h-4 w-4" />
+              Sign In
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (isProfileLoading || isStatsLoading || isMeetHistoryLoading || isTraitsLoading) {
     return (

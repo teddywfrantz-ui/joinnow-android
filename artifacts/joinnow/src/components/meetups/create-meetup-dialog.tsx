@@ -75,12 +75,15 @@ export function CreateMeetupDialog({
   open, 
   onOpenChange, 
   initialLocation, 
-  onAfterCreate 
+  onAfterCreate,
+  groupId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialLocation?: { latitude: number; longitude: number; } | null;
   onAfterCreate?: () => void;
+  /** When present, use the same form to create a meetup for this group. */
+  groupId?: number | null;
 }) {
   const [isAdjustingRadius, setIsAdjustingRadius] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -130,6 +133,8 @@ export function CreateMeetupDialog({
       longitude,
       exactLocation: values.location.address,
       expiresAt: new Date(Date.now() + values.duration * 60 * 60 * 1000),
+      radius: values.location.radius,
+      duration: values.duration,
       // Add demographic filters if enabled
       ...(values.useFilters && {
         genderFilter: values.genderFilter,
@@ -139,10 +144,10 @@ export function CreateMeetupDialog({
     };
 
     try {
-      await createMeetup(meetupData);
+      await createMeetup({ ...meetupData, ...(groupId ? { groupId } : {}) });
       toast({
         title: "Success",
-        description: "Your meetup has been created!",
+        description: "Your Meet has been created!",
       });
       form.reset();
       onOpenChange(false);
@@ -151,7 +156,7 @@ export function CreateMeetupDialog({
       }
     } catch (error) {
       console.error('Error creating meetup:', error);
-      let errorMessage = "Failed to create meetup";
+      let errorMessage = "Failed to create Meet";
       if (error instanceof Error) {
         errorMessage = error.message;
       }

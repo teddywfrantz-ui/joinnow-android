@@ -383,8 +383,8 @@ export function GroupChat({
         <p className="text-xs text-muted-foreground">
           This chat stays with your group.{" "}
           {hasCurrentMeetup
-            ? "Your meetup conversation is separate in the active meetup."
-            : "If you join a meetup, its conversation will be separate."}
+            ? "Your Meet conversation is separate in the active Meet."
+            : "If you join a Meet, its conversation will be separate."}
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

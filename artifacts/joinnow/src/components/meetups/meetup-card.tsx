@@ -25,6 +25,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { UserTraitsDialog } from "@/components/users/user-traits-dialog";
 import { UserProfileModal } from "@/components/users/user-profile-modal";
 import { Badge } from "@/components/ui/badge";
+import type { CurrentGroup, GroupMeetupRequest } from "@/hooks/use-groups";
+import { RequestingGroupProfiles } from "@/components/groups/requesting-group-profiles";
+import { GroupMembersDialog } from "@/components/groups/group-members-dialog";
 
 interface UserTraits {
   traitName: string;
@@ -173,10 +176,48 @@ export function MeetupCard({
   const [isLoading, setIsLoading] = useState(false);
   const [joinMessage, setJoinMessage] = useState<string>('');
   const [selectedUser, setSelectedUser] = useState<{ id: number; username: string } | null>(null);
+  const [showGroupMembers, setShowGroupMembers] = useState(false);
+  const [selectedGroupRequest, setSelectedGroupRequest] = useState<{
+    meetupId: number;
+    requestId: number;
+  } | null>(null);
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [location, setLocation] = useLocation();
+  const { data: currentGroups = [] } = useQuery<CurrentGroup[]>({
+    queryKey: ["/api/groups"],
+    queryFn: async () => {
+      const response = await fetch("/api/groups", { credentials: "include" });
+      if (response.status === 401) return [];
+      if (!response.ok) throw new Error("Failed to load current group");
+      return response.json();
+    },
+    enabled: Boolean(currentUser),
+    staleTime: 0,
+    refetchOnMount: true,
+  });
+  const currentGroup = currentGroups[0] ?? null;
+  const groupRequest = currentGroup?.pendingMeetupRequests.find(
+    (request) => request.meetupId === initialMeetup.id,
+  );
+  const { data: groupRequests = [] } = useQuery<
+    GroupMeetupRequest[]
+  >({
+    queryKey: [`/api/meetups/${initialMeetup.id}/group-requests`],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/meetups/${initialMeetup.id}/group-requests`,
+        { credentials: "include" },
+      );
+      if (response.status === 401 || response.status === 403) return [];
+      if (!response.ok) throw new Error("Failed to load group requests");
+      return response.json();
+    },
+    enabled: Boolean(currentUser) && currentUser?.id === initialMeetup.creator_id,
+    staleTime: 0,
+    refetchInterval: 5000,
+  });
 
   // Don't show the card on active meet page
   if (location === '/active-meet') {
@@ -191,7 +232,7 @@ export function MeetupCard({
       const response = await fetch(`/api/meetups/${initialMeetup.id}`, {
         credentials: 'include'
       });
-      if (!response.ok) throw new Error('Failed to fetch meetup');
+      if (!response.ok) throw new Error('Failed to fetch Meet');
       return response.json();
     },
     initialData: initialMeetup,
@@ -270,7 +311,7 @@ export function MeetupCard({
           
           toast({
             title: "New Join Request",
-            description: `${message.username || 'Someone'} wants to join your meetup`,
+            description: `${message.username || 'Someone'} wants to join your Meet`,
           });
         }
       },
@@ -291,7 +332,7 @@ export function MeetupCard({
         if (message.userId === currentUser?.id) {
           toast({
             title: "Request Accepted",
-            description: `Your request to join ${message.title || 'the meetup'} has been accepted!`,
+            description: `Your request to join ${message.title || 'the Meet'} has been accepted!`,
             variant: "default" // Changed from "success" to "default" to match allowed values
           });
         }
@@ -346,8 +387,8 @@ export function MeetupCard({
       },
       meetup_disbanded: (message) => {
         toast({
-          title: "Meetup Disbanded",
-          description: message.message || "This meetup has been disbanded by the creator",
+          title: "Meet Disbanded",
+          description: message.message || "This Meet has been disbanded by the creator",
           variant: "destructive"
         });
         queryClient.invalidateQueries({ queryKey: ['/api/meetups'] });
@@ -355,8 +396,8 @@ export function MeetupCard({
       },
       meetup_completed: (message) => {
         toast({
-          title: "Meetup Completed",
-          description: message.message || "This meetup has been marked as completed",
+          title: "Meet Completed",
+          description: message.message || "This Meet has been marked as completed",
         });
         queryClient.invalidateQueries({ queryKey: ['/api/meetups'] });
         queryClient.invalidateQueries({ queryKey: ['/api/active-meetup'] });
@@ -365,7 +406,7 @@ export function MeetupCard({
         if (isCreator) {
           toast({
             title: "Participant Left",
-            description: message.message || "A participant has left the meetup",
+            description: message.message || "A participant has left the Meet",
           });
           queryClient.invalidateQueries({ queryKey: [`/api/meetups/${initialMeetup.id}/participants`] });
         }
@@ -457,14 +498,14 @@ export function MeetupCard({
 
       toast({
         title: "Duration Extended",
-        description: `Meetup duration has been extended by ${hours} hour${hours > 1 ? 's' : ''}.`
+            description: `Meet duration has been extended by ${hours} hour${hours > 1 ? 's' : ''}.`
       });
 
       setShowDurationDialog(false);
     } catch (error) {
       toast({
         title: "Failed to extend duration",
-        description: error instanceof Error ? error.message : "Failed to extend meetup duration",
+          description: error instanceof Error ? error.message : "Failed to extend Meet duration",
         variant: "destructive"
       });
     } finally {
@@ -505,9 +546,116 @@ export function MeetupCard({
   const canSeeLocation = isCreator || isParticipant;
   const capacityClass = getCapacityClass(participantCount, meetup.maxParticipants);
 
+  const handleGroupRequest = async () => {
+    if (!currentUser || !currentGroup) return;
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `/api/groups/${currentGroup.id}/meetup-requests`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ meetupId: meetup.id }),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || "Failed to request for group");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/groups"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/meetups"] }),
+      ]);
+      toast({
+        title: "Group request sent",
+        description: `Your request was sent for all ${currentGroup.members.length} group members.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Cannot request for group",
+        description: error instanceof Error ? error.message : "Failed to request for group",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelGroupRequest = async () => {
+    if (!currentUser || !currentGroup || !groupRequest) return;
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `/api/groups/${currentGroup.id}/meetup-requests/${groupRequest.id}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || "Failed to cancel group request");
+      await queryClient.invalidateQueries({ queryKey: ["/api/groups"] });
+      toast({ title: "Group request cancelled" });
+    } catch (error) {
+      toast({
+        title: "Failed to cancel group request",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGroupDecision = async (
+    request: GroupMeetupRequest,
+    status: "accepted" | "rejected",
+  ) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(
+        `/api/meetups/${meetup.id}/group-requests/${request.id}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ status }),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || `Failed to ${status} group request`);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [`/api/meetups/${meetup.id}/group-requests`],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [`/api/meetups/${meetup.id}`],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["/api/meetups"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/groups"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/active-meetup"] }),
+      ]);
+      toast({
+        title: status === "accepted" ? "Group accepted" : "Group request declined",
+        description:
+          status === "accepted"
+            ? `${request.groupName || "The group"} joined your meetup.`
+            : "The group request was declined.",
+      });
+    } catch (error) {
+      toast({
+        title: `Failed to ${status} group request`,
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
 
   const handleJoinRequest = async (meetupId: number) => {
     if (!currentUser) return;
+    if (currentGroup && !currentGroup.currentMeetupId && !isCreator) {
+      await handleGroupRequest();
+      return;
+    }
     setIsLoading(true);
 
     try {
@@ -563,7 +711,7 @@ export function MeetupCard({
 
       toast({
         title: "Request Sent",
-        description: "Your request to join this meetup has been sent.",
+        description: "Your request to join this Meet has been sent.",
       });
     } catch (error) {
       console.error('Join request error:', error);
@@ -588,7 +736,7 @@ export function MeetupCard({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || `Failed to ${action} meetup`);
+        throw new Error(error.error || `Failed to ${action} Meet`);
       }
 
       // Close all dialogs first
@@ -598,8 +746,8 @@ export function MeetupCard({
       setShowDurationDialog(false);
 
       toast({
-        title: `Meetup Ended`,
-        description: `The meetup has been successfully ended. Preparing rating page...`,
+      title: `Meet Ended`,
+      description: `The Meet has been successfully ended. Preparing rating page...`,
         duration: 3000,
       });
 
@@ -620,8 +768,8 @@ export function MeetupCard({
 
     } catch (error) {
       toast({
-        title: `Failed to end meetup`,
-        description: error instanceof Error ? error.message : `An error occurred while trying to end the meetup`,
+      title: `Failed to end Meet`,
+      description: error instanceof Error ? error.message : `An error occurred while trying to end the Meet`,
         variant: "destructive"
       });
     } finally {
@@ -666,14 +814,14 @@ export function MeetupCard({
 
       toast({
         title: 'Member Removed',
-        description: 'Member successfully removed from meetup.',
+        description: 'Member successfully removed from Meet.',
       });
 
       setShowParticipants(false); // Close the participants dialog after successful removal
     } catch (error) {
       toast({
         title: 'Failed to remove member',
-        description: error instanceof Error ? error.message : 'Failed to remove member from meetup',
+        description: error instanceof Error ? error.message : 'Failed to remove member from Meet',
         variant: 'destructive',
       });
     } finally {
@@ -842,6 +990,57 @@ export function MeetupCard({
                 ))}
               </div>
             )}
+            {groupRequests.length > 0 && (
+              <div className="mt-6 space-y-2">
+                <h4 className="text-sm font-medium text-muted-foreground px-1">
+                  Pending group requests
+                </h4>
+                {groupRequests.map((request) => (
+                  <div
+                    key={`group-${request.id}`}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/50 p-4"
+                  >
+                    <div>
+                      <p className="font-medium">
+                        {request.groupName || "Another group"}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+              Requested for this Meet
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setSelectedGroupRequest({
+                            meetupId: meetup.id,
+                            requestId: request.id,
+                          })
+                        }
+                      >
+                        <Users className="mr-1 h-4 w-4" /> View group
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleGroupDecision(request, "rejected")}
+                        disabled={isLoading}
+                      >
+                        Decline
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleGroupDecision(request, "accepted")}
+                        disabled={isLoading}
+                      >
+                        Accept group
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </ScrollArea>
         </CardContent>
       </Card>
@@ -909,20 +1108,30 @@ export function MeetupCard({
           </div>
           <div className="text-sm text-muted-foreground mt-2">
             Created by:{" "}
-            <Button
-              variant="link"
-              className="h-auto p-0 text-sm text-muted-foreground hover:text-primary"
-              onClick={() => {
-                if (meetup.creator_id && meetup.creator_username) {
-                  setSelectedUser({
-                    id: meetup.creator_id,
-                    username: meetup.creator_username
-                  });
-                }
-              }}
-            >
-              {meetup.creator_username || 'Unknown'}
-            </Button>
+            {meetup.group_id ? (
+              <button
+                type="button"
+                className="font-medium text-foreground hover:underline"
+                onClick={() => setShowGroupMembers(true)}
+              >
+                {meetup.creator_group_name || meetup.creator_displayName || meetup.creator_username || "Group"}
+              </button>
+            ) : (
+              <Button
+                variant="link"
+                className="h-auto p-0 text-sm text-muted-foreground hover:text-primary"
+                onClick={() => {
+                  if (meetup.creator_id && meetup.creator_username) {
+                    setSelectedUser({
+                      id: meetup.creator_id,
+                      username: meetup.creator_username
+                    });
+                  }
+                }}
+              >
+                {meetup.creator_displayName || meetup.creator_username || 'Unknown'}
+              </Button>
+            )}
           </div>
           
           {/* Show demographic filters for creators only */}
@@ -1037,6 +1246,35 @@ export function MeetupCard({
                   </div>
                 )}
               </div>
+            ) : currentGroup?.currentMeetupId ? (
+              <Button className="w-full" variant="outline" disabled>
+              Your group is in an active Meet
+              </Button>
+            ) : groupRequest ? (
+              <div className="w-full flex gap-2">
+                <Button
+                  className="flex-1 gap-2"
+                  variant="outline"
+                  disabled={true}
+                >
+                  <Hourglass className="h-4 w-4 text-blue-500 animate-pulse" />
+                  Group request pending
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Cancel group request"
+                  className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                  onClick={handleCancelGroupRequest}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <X className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             ) : hasCurrentUserPendingRequest ? (
               <div className="w-full flex gap-2">
                 <Button
@@ -1067,16 +1305,18 @@ export function MeetupCard({
                 variant="outline"
                 disabled
               >
-                Meetup Full!
+              Meet Full!
               </Button>
             ) : (
               <div className="w-full space-y-2">
-                <Textarea
-                  placeholder="I'd like to join your meet!"
-                  className="min-h-[80px]"
-                  value={joinMessage}
-                  onChange={(e) => setJoinMessage(e.target.value)}
-                />
+                {(!currentGroup || currentGroup.currentMeetupId) && (
+                  <Textarea
+                    placeholder="I'd like to join your meet!"
+                    className="min-h-[80px]"
+                    value={joinMessage}
+                    onChange={(e) => setJoinMessage(e.target.value)}
+                  />
+                )}
                 <Button
                   className="w-full"
                   onClick={() => handleJoinRequest(meetup.id)}
@@ -1089,7 +1329,9 @@ export function MeetupCard({
                       Processing...
                     </>
                   ) : (
-                    'Request to join'
+                    currentGroup && !currentGroup.currentMeetupId
+                      ? 'Request for group'
+                      : 'Request to join'
                   )}
                 </Button>
               </div>
@@ -1117,23 +1359,34 @@ export function MeetupCard({
             ) : (
               <div className="space-y-4">
                 {meetup.creator_username && (
-                  <ParticipantCard
-                    participant={{
-                      id: meetup.creator_id || 0,
-                      username: meetup.creator_username || 'Unknown',
-                      createdAt: meetup.createdAt || new Date().toISOString(),
-                      profilePicture: meetup.creator_profile_picture
-                    }}
-                    isCreator={false}
-                    currentUser={currentUser}
-                    onClick={() => {
-                      const userData = { 
-                        id: meetup.creator_id || 0, 
-                        username: meetup.creator_username || 'Unknown'
-                      };
-                      setSelectedUser(userData);
-                    }}
-                  />
+                  meetup.group_id ? (
+                    <div className="rounded-lg border p-4">
+                      <p className="font-medium">
+                        Created by group:{" "}
+                        {meetup.creator_group_name ||
+                          meetup.creator_displayName ||
+                          meetup.creator_username}
+                      </p>
+                    </div>
+                  ) : (
+                    <ParticipantCard
+                      participant={{
+                        id: meetup.creator_id || 0,
+                        username: meetup.creator_username || 'Unknown',
+                        createdAt: meetup.createdAt || new Date().toISOString(),
+                        profilePicture: meetup.creator_profile_picture
+                      }}
+                      isCreator={false}
+                      currentUser={currentUser}
+                      onClick={() => {
+                        const userData = {
+                          id: meetup.creator_id || 0,
+                          username: meetup.creator_username || 'Unknown'
+                        };
+                        setSelectedUser(userData);
+                      }}
+                    />
+                  )
                 )}
                 {filteredParticipants?.map((participant: { 
                     id: number; 
@@ -1185,7 +1438,7 @@ export function MeetupCard({
               End Meet
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to end this meetup? This will mark the meetup as finished and allow participants to leave reviews.
+                Are you sure you want to end this Meet? This will mark the Meet as finished and allow participants to leave reviews.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex gap-2">
@@ -1210,7 +1463,7 @@ export function MeetupCard({
       <Dialog open={showDurationDialog} onOpenChange={setShowDurationDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Extend Meetup Duration</DialogTitle>
+          <DialogTitle>Extend Meet Duration</DialogTitle>
             <DialogDescription>
               Choose how many hours to extend the meetup. Total duration cannot exceed 24 hours from creation time.
             </DialogDescription>
@@ -1244,6 +1497,21 @@ export function MeetupCard({
           open={!!selectedUser}
           onOpenChange={(open) => !open && setSelectedUser(null)}
         />
+        <GroupMembersDialog
+          groupId={meetup.group_id}
+          groupName={
+            meetup.creator_group_name ||
+            meetup.creator_displayName ||
+            meetup.creator_username ||
+            "Group"
+          }
+          open={showGroupMembers}
+          onOpenChange={setShowGroupMembers}
+        />
+      <RequestingGroupProfiles
+        request={selectedGroupRequest}
+        onClose={() => setSelectedGroupRequest(null)}
+      />
       </div>
     </>
   );

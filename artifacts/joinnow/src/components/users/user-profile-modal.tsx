@@ -183,8 +183,8 @@ export function UserProfileModal({
     // Bronze tier (beginner)
     {
       id: 1,
-      name: "Meetup Newbie",
-      description: "Attended your first meetup",
+  name: "Meet Newbie",
+  description: "Attended your first Meet",
       icon: <MapPin className="h-5 w-5 text-amber-600" />,
       tier: "bronze",
       isUnlocked: true,
@@ -202,7 +202,7 @@ export function UserProfileModal({
     {
       id: 3,
       name: "Host Debut",
-      description: "Created your first meetup",
+  description: "Created your first Meet",
       icon: <User className="h-5 w-5 text-amber-600" />,
       tier: "bronze",
       isUnlocked: true,
@@ -229,7 +229,7 @@ export function UserProfileModal({
     {
       id: 31,
       name: "Social Starter",
-      description: "Send your first chat message in a meetup",
+  description: "Send your first chat message in a Meet",
       icon: <MessageCircle className="h-5 w-5 text-amber-600" />,
       tier: "bronze",
       isUnlocked: true,
@@ -240,7 +240,7 @@ export function UserProfileModal({
     {
       id: 6,
       name: "Social Butterfly",
-      description: "Attended 5 meetups",
+  description: "Attended 5 Meets",
       icon: <Users className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: true,
@@ -249,7 +249,7 @@ export function UserProfileModal({
     {
       id: 7,
       name: "Trendsetter",
-      description: "Created a meetup that reached maximum capacity",
+  description: "Created a Meet that reached maximum capacity",
       icon: <Star className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: false,
@@ -259,7 +259,7 @@ export function UserProfileModal({
     {
       id: 8,
       name: "Conversation Starter",
-      description: "Sent 50 chat messages across all meetups",
+  description: "Sent 50 chat messages across all Meets",
       icon: <MessageSquare className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: false,
@@ -269,7 +269,7 @@ export function UserProfileModal({
     {
       id: 19,
       name: "Regular Attendee",
-      description: "Join meetups in 3 different themes",
+  description: "Join Meets in 3 different themes",
       icon: <Layout className="h-5 w-5 text-slate-400" />,
       tier: "silver",
       isUnlocked: false,
@@ -792,7 +792,7 @@ const calculatedTier = getTierForUser(profileData || { id: undefined, username: 
                 </span>
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Calendar className="h-3 w-3" />
-                  Meetups
+  Meets
                 </span>
               </div>
               

@@ -1082,7 +1082,7 @@ const LeaderboardPage: React.FC = () => {
                   Top Hosts
                 </CardTitle>
                 <CardDescription>
-                  Users who've created the most meetups
+          Users who've created the most Meets
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1165,7 +1165,7 @@ const LeaderboardPage: React.FC = () => {
                                   <p className="text-xs text-muted-foreground">@{host.username}</p>
                                 </div>
                                 <Badge variant="secondary" className="ml-auto">
-                                  {host.count} {host.count === 1 ? 'meetup' : 'meetups'}
+              {host.count} {host.count === 1 ? 'Meet' : 'Meets'}
                                 </Badge>
                               </div>
                             );
@@ -1223,7 +1223,7 @@ const LeaderboardPage: React.FC = () => {
                               <p className="text-xs text-muted-foreground">@{host.username}</p>
                             </div>
                             <Badge variant="secondary" className="ml-auto">
-                              {host.count} {host.count === 1 ? 'meetup' : 'meetups'}
+              {host.count} {host.count === 1 ? 'Meet' : 'Meets'}
                             </Badge>
                           </div>
                         );
@@ -1257,7 +1257,7 @@ const LeaderboardPage: React.FC = () => {
                   Most Active Users
                 </CardTitle>
                 <CardDescription>
-                  Users who've joined the most meetups
+          Users who've joined the most Meets
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1340,7 +1340,7 @@ const LeaderboardPage: React.FC = () => {
                                   <p className="text-xs text-muted-foreground">@{user.username}</p>
                                 </div>
                                 <Badge variant="secondary" className="ml-auto">
-                                  {user.count} {user.count === 1 ? 'meetup' : 'meetups'}
+              {user.count} {user.count === 1 ? 'Meet' : 'Meets'}
                                 </Badge>
                               </div>
                             );
@@ -1398,7 +1398,7 @@ const LeaderboardPage: React.FC = () => {
                               <p className="text-xs text-muted-foreground">@{user.username}</p>
                             </div>
                             <Badge variant="secondary" className="ml-auto">
-                              {user.count} {user.count === 1 ? 'meetup' : 'meetups'}
+              {user.count} {user.count === 1 ? 'Meet' : 'Meets'}
                             </Badge>
                           </div>
                         );

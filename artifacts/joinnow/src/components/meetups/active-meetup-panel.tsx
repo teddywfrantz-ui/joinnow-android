@@ -55,6 +55,9 @@ import {
 } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import type { GroupMeetupRequest } from "@/hooks/use-groups";
+import { RequestingGroupProfiles } from "@/components/groups/requesting-group-profiles";
+import { GroupMembersDialog } from "@/components/groups/group-members-dialog";
 
 interface ParticipantLocation {
   userId: number | null;
@@ -227,6 +230,21 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
   // Get join requests and cast them to our extended interface
   const { requests: originalRequests, handleRequest } = useJoinRequests(meetup.id);
   const requests = originalRequests as ExtendedJoinRequest[] | undefined;
+  const { data: groupRequests = [] } = useQuery<GroupMeetupRequest[]>({
+    queryKey: [`/api/meetups/${meetup.id}/group-requests`],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/meetups/${meetup.id}/group-requests`,
+        { credentials: "include" },
+      );
+      if (response.status === 401 || response.status === 403) return [];
+      if (!response.ok) throw new Error("Failed to load group requests");
+      return response.json();
+    },
+    enabled: meetup.creator_id === user?.id,
+    staleTime: 0,
+    refetchInterval: 5000,
+  });
   
   // Debug log to check if profilePicture is present in requests
   useEffect(() => {
@@ -238,6 +256,11 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
   const [, setLocation] = useLocation();
   const [isCompleting, setIsCompleting] = useState(false);
   const [selectedUser, setSelectedUser] = useState<{ id: number; username: string } | null>(null);
+  const [showGroupMembers, setShowGroupMembers] = useState(false);
+  const [selectedGroupRequest, setSelectedGroupRequest] = useState<{
+    meetupId: number;
+    requestId: number;
+  } | null>(null);
   const [showExtendDialog, setShowExtendDialog] = useState(false);
   const [maxExtensionHours, setMaxExtensionHours] = useState(0);
   const [detailsCollapsed, setDetailsCollapsed] = useState(false);
@@ -246,6 +269,45 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
   const [lastScrollPosition, setLastScrollPosition] = useState(0);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const participantsContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleGroupRequestDecision = async (
+    request: GroupMeetupRequest,
+    status: "accepted" | "rejected",
+  ) => {
+    try {
+      const response = await fetch(
+        `/api/meetups/${meetup.id}/group-requests/${request.id}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ status }),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error || "Unable to update group request");
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [`/api/meetups/${meetup.id}/group-requests`],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["/api/meetups"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/active-meetup"] }),
+      ]);
+      toast({
+        title: status === "accepted" ? "Group accepted" : "Group declined",
+        description:
+          status === "accepted"
+            ? `${request.groupName || "The group"} joined this Meet.`
+            : "The group request was declined.",
+      });
+    } catch (error) {
+      toast({
+        title: "Group request update failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
 
   useEffect(() => {
     calculateTimeLeft();
@@ -572,7 +634,7 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
         if (maxExtensionHours <= 0) {
           toast({
             title: "Cannot extend duration",
-            description: `This meetup has reached its maximum duration of 24 hours from creation time (created ${formatDistanceToNow(createdAtDate, { addSuffix: true })}).`,
+            description: `This Meet has reached its maximum duration of 24 hours from creation time (created ${formatDistanceToNow(createdAtDate, { addSuffix: true })}).`,
             variant: "destructive"
           });
           return;
@@ -621,7 +683,7 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
       if (action === 'complete') {
         toast({
           title: "Success",
-          description: "Meetup ended successfully. Redirecting to rating page...",
+          description: "Meet ended successfully. Redirecting to rating page...",
           duration: 3000,
         });
 
@@ -638,7 +700,7 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
       console.error(`[${action} Meetup] Action error:`, error);
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : `Failed to ${action} meetup`,
+        description: error instanceof Error ? error.message : `Failed to ${action} Meet`,
         variant: "destructive"
       });
     } finally {
@@ -673,14 +735,14 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
 
       toast({
         title: "Duration Extended",
-        description: `Meetup duration has been extended by ${hours} hour${hours > 1 ? 's' : ''}.`
+        description: `Meet duration has been extended by ${hours} hour${hours > 1 ? 's' : ''}.`
       });
 
       setShowExtendDialog(false);
     } catch (error) {
       toast({
         title: "Failed to extend duration",
-        description: error instanceof Error ? error.message : "Failed to extend meetup duration",
+        description: error instanceof Error ? error.message : "Failed to extend Meet duration",
         variant: "destructive"
       });
     }
@@ -1001,20 +1063,37 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
           <div className="h-full px-4 pb-4 pt-2">
             <div className="space-y-4">
               {meetup.creator_username && (
-                <ParticipantCard
-                  participant={{
-                    id: meetup.creator_id || 0,
-                    username: meetup.creator_username || '',
-                    createdAt: typeof meetup.createdAt === 'string' ? meetup.createdAt : new Date().toISOString()
-                  }}
-                  isCreator={false}
-                  currentUser={user}
-                  onClick={() => setSelectedUser({
-                    id: meetup.creator_id || 0,
-                    username: meetup.creator_username || ''
-                  })}
-                  showCreatorBadge
-                />
+                meetup.group_id ? (
+                  <div className="rounded-lg border p-4">
+                    <p className="font-medium">
+                      Created by group:{" "}
+                      <button
+                        type="button"
+                        className="hover:underline"
+                        onClick={() => setShowGroupMembers(true)}
+                      >
+                        {meetup.creator_group_name ||
+                          meetup.creator_displayName ||
+                          meetup.creator_username}
+                      </button>
+                    </p>
+                  </div>
+                ) : (
+                  <ParticipantCard
+                    participant={{
+                      id: meetup.creator_id || 0,
+                      username: meetup.creator_username || '',
+                      createdAt: typeof meetup.createdAt === 'string' ? meetup.createdAt : new Date().toISOString()
+                    }}
+                    isCreator={false}
+                    currentUser={user}
+                    onClick={() => setSelectedUser({
+                      id: meetup.creator_id || 0,
+                      username: meetup.creator_username || ''
+                    })}
+                    showCreatorBadge
+                  />
+                )
               )}
 
               {participants.length > 0 && (
@@ -1084,6 +1163,18 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() =>
+                            setSelectedGroupRequest({
+                              meetupId: meetup.id,
+                              requestId: request.id,
+                            })
+                          }
+                        >
+                          <Users className="mr-1 h-4 w-4" /> View group
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1145,6 +1236,47 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
                   ))}
                 </div>
               )}
+              {isCreator && groupRequests.length > 0 && (
+                <div className="space-y-2 mt-6">
+                  <h4 className="text-sm font-medium text-muted-foreground px-1">
+                    Pending group requests
+                  </h4>
+                  {groupRequests.map((request) => (
+                    <div
+                      key={`group-${request.id}`}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/50 p-4"
+                    >
+                      <div>
+                        <p className="font-medium">
+                          {request.groupName || "Another group"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Requested for everyone in this group
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            handleGroupRequestDecision(request, "rejected")
+                          }
+                        >
+                          Decline
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() =>
+                            handleGroupRequestDecision(request, "accepted")
+                          }
+                        >
+                          Accept group
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
               
               {/* Add some padding at the bottom for mobile */}
               {isMobile && <div className="h-8" />}
@@ -1179,9 +1311,9 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
 
       <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
         <DialogContent>
-          <DialogTitle>Extend Meetup Duration</DialogTitle>
+          <DialogTitle>Extend Meet Duration</DialogTitle>
           <DialogDescription>
-            Choose how many hours to extend the meetup. Total duration cannot exceed 24 hours from creation time.
+            Choose how many hours to extend the Meet. Total duration cannot exceed 24 hours from creation time.
             Maximum extension: {maxExtensionHours} hours
           </DialogDescription>
           <div className="grid grid-cols-2 gap-4 py-4">
@@ -1209,6 +1341,21 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
         open={!!selectedUser}
         onOpenChange={(open) => !open && setSelectedUser(null)}
       />
+      <GroupMembersDialog
+        groupId={meetup.group_id}
+        groupName={
+          meetup.creator_group_name ||
+          meetup.creator_displayName ||
+          meetup.creator_username ||
+          "Group"
+        }
+        open={showGroupMembers}
+        onOpenChange={setShowGroupMembers}
+      />
+      <RequestingGroupProfiles
+        request={selectedGroupRequest}
+        onClose={() => setSelectedGroupRequest(null)}
+      />
       
       {/* Handle join requests in a separate component if needed */}
       {requests && requests.length > 0 && selectedUser && (
@@ -1224,7 +1371,7 @@ export function ActiveMeetupPanel({ meetup, participants, initialTab }: ActiveMe
                 const request = requests?.find(r => r.user_id === selectedUser?.id);
                 return (
                   <>
-                    {request?.displayName || selectedUser?.username} has requested to join this meetup. 
+                    {request?.displayName || selectedUser?.username} has requested to join this Meet.
                     Would you like to accept or reject their request?
                   </>
                 );

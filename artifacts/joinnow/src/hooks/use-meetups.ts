@@ -13,7 +13,7 @@ export function useMeetups() {
         credentials: 'include'
       });
       if (!response.ok) {
-        throw new Error('Failed to fetch meetups');
+  throw new Error('Failed to fetch Meets');
       }
       return response.json();
     },
@@ -23,9 +23,9 @@ export function useMeetups() {
     refetchOnMount: true,
     retry: 3,
     onError: (error: Error) => {
-      console.error('Error fetching meetups:', error);
+  console.error('Error fetching Meets:', error);
       toast({
-        title: "Error fetching meetups",
+    title: "Error fetching Meets",
         description: error.message,
         variant: "destructive"
       });
@@ -33,13 +33,25 @@ export function useMeetups() {
   });
 
   const createMeetup = useMutation({
-    mutationFn: async (meetup: NewMeetup) => {
-      const res = await fetch('/api/meetups', {
+    mutationFn: async (
+      meetup: NewMeetup & {
+        groupId?: number;
+        radius?: number;
+        duration?: number;
+      },
+    ) => {
+      const { groupId, ...meetupFields } = meetup;
+      const endpoint = groupId
+        ? `/api/groups/${groupId}/meetups`
+        : "/api/meetups";
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...meetup,
-          expiresAt: meetup.expiresAt.toISOString()
+          ...meetupFields,
+          expiresAt: meetupFields.expiresAt instanceof Date
+            ? meetupFields.expiresAt.toISOString()
+            : meetupFields.expiresAt,
         }),
         credentials: 'include'
       });
@@ -55,9 +67,9 @@ export function useMeetups() {
         return data;
       }
 
-      const errorMessage = data.error || (res.ok ? 
-        'Server returned success but no meetup was created' : 
-        'Failed to create meetup');
+      const errorMessage = data?.error || (res.ok ?
+  'Server returned success but no Meet was created' :
+  'Failed to create Meet');
       throw new Error(errorMessage);
     },
     onSuccess: (data) => {
@@ -76,12 +88,12 @@ export function useMeetups() {
 
       toast({
         title: "Success!",
-        description: "Your meetup has been created successfully.",
+    description: "Your Meet has been created successfully.",
       });
     },
     onError: (error: Error) => {
       if (error.message && 
-          !error.message.includes('Failed to create meetup') &&
+          !error.message.includes('Failed to create Meet') &&
           !error.message.includes('Invalid server response')) {
         toast({
           title: "Creation Failed",
