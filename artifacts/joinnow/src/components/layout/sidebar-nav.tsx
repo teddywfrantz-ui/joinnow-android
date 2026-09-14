@@ -29,7 +29,7 @@ export function SidebarNav({ className, onNavigate, ...props }: SidebarNavProps)
       iconColor: "text-blue-500"
     },
     {
-      title: "Active Meet",
+      title: "Active",
       icon: Star,
       href: "active-meet",
       description: "Current Meet details",

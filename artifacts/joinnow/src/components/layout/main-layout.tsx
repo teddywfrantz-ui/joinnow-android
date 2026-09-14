@@ -1,14 +1,13 @@
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { SidebarNav } from "./sidebar-nav";
 import { Button } from "@/components/ui/button";
-import { LogIn, UserIcon, Settings, LogOut, ChevronDown, Menu, Sun, Moon } from "lucide-react";
+import { LogIn, UserIcon, Settings, LogOut, ChevronDown, Sun, Moon, Menu } from "lucide-react";
 import { Link } from "wouter";
 import { useUser } from "@/hooks/use-user";
 import { useToast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
 import { useAppearance, initializeAppearanceFromStorage } from "@/hooks/use-appearance";
 import { NotificationDropdown } from "@/components/notifications/notification-dropdown";
-import { ThemeAwareLogo } from "@/components/common/theme-aware-logo";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,16 +16,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
 interface MainLayoutProps {
   children: ReactNode;
 }
 
 export function MainLayout({ children }: MainLayoutProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const isAndroidWrapper = /JoinNowAndroid\//.test(navigator.userAgent);
   const { user, logout } = useUser();
   const { toast } = useToast();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { appearance, toggleDarkMode } = useAppearance();
   
   // Initialize appearance from localStorage on component mount
@@ -63,20 +62,23 @@ export function MainLayout({ children }: MainLayoutProps) {
   };
 
   return (
-    <div className="flex flex-col h-screen">
-      <header className="border-b px-4 py-2 bg-background">
+    <div className="flex flex-col h-dvh">
+      <header className="shrink-0 border-b px-4 py-2 bg-background">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="md:hidden">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-64">
-                <SidebarNav onNavigate={() => setIsMobileMenuOpen(false)} />
-              </SheetContent>
-            </Sheet>
+            {!isAndroidWrapper && (
+              <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Open navigation menu">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="flex flex-col overflow-y-auto">
+                  <SheetHeader><SheetTitle>Navigation</SheetTitle></SheetHeader>
+                  <SidebarNav onNavigate={() => setMenuOpen(false)} />
+                </SheetContent>
+              </Sheet>
+            )}
             <Link href="/">
               <div className="h-10 w-auto cursor-pointer hover:scale-105">
                 {appearance?.darkMode ? (
@@ -130,6 +132,12 @@ export function MainLayout({ children }: MainLayoutProps) {
                       )}
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <Link href="profile">
+                      <DropdownMenuItem className="gap-2 cursor-pointer">
+                        <UserIcon className="w-4 h-4" />
+                        Profile
+                      </DropdownMenuItem>
+                    </Link>
                     <Link href="settings">
                       <DropdownMenuItem className="gap-2 cursor-pointer">
                         <Settings className="w-4 h-4" />
@@ -155,9 +163,9 @@ export function MainLayout({ children }: MainLayoutProps) {
           </div>
         </div>
       </header>
-      <div className="flex flex-1 overflow-hidden">
-        <SidebarNav className="hidden md:flex w-64 flex-shrink-0" />
-        <main className="flex-1 overflow-auto">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {!isAndroidWrapper && <SidebarNav className="hidden md:flex w-64 flex-shrink-0" />}
+        <main className="flex-1 min-w-0 overflow-auto">
           {children}
         </main>
       </div>

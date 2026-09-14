@@ -921,7 +921,7 @@ export function ChatWindow({
         {!readOnly && <div className={cn(
           "p-3 border-t bg-background fixed shadow-lg z-50 w-full max-w-[100vw]",
           isMobileChat
-            ? "bottom-[calc(4rem+env(safe-area-inset-bottom))] pb-3 pt-2"
+            ? "bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
             : "bottom-0 pb-3",
           // Additional styling to ensure visibility
           "left-0 right-0 mx-auto"

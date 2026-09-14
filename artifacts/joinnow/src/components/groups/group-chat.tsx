@@ -242,7 +242,7 @@ export function GroupChat({
           ? cn(
               "fixed left-0 right-0 z-50 mx-auto w-full max-w-[100vw] shadow-lg",
               isMobile
-                ? "bottom-[calc(4rem+env(safe-area-inset-bottom))]"
+                ? "bottom-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
                 : "bottom-0"
             )
           : "shrink-0",
