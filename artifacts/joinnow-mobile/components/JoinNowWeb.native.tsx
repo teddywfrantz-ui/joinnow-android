@@ -228,7 +228,8 @@ const ANDROID_BRIDGE_SCRIPT = `
       const style = document.createElement('style');
       style.textContent = [
         'button[data-join-now-android-hamburger="true"],',
-        'button[data-sidebar="trigger"]{display:none!important}',
+        'button[data-sidebar="trigger"],',
+        '[data-join-now-mobile-bottom-nav]{display:none!important}',
         '[data-join-now-android-map-control="true"],',
         '.gm-bundled-control,',
         '.gm-bundled-control-on-bottom,',
