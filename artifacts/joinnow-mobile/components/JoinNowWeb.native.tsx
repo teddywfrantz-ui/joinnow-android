@@ -328,12 +328,13 @@ const ANDROID_BRIDGE_SCRIPT = `
 const MAIN_TABS = [
   { label: 'Map', path: '/map', icon: 'map' },
   { label: 'Active', path: '/active-meet', icon: 'star' },
-  { label: 'Friends', path: '/friends', icon: 'users' },
-  { label: 'Profile', path: '/profile', icon: 'user' },
+  { label: 'Messages', path: '/messages', icon: 'message-circle' },
+  { label: 'Group', path: '/groups', icon: 'users' },
 ] as const;
 
 const MORE_TABS = [
-  { label: 'Group', path: '/groups', icon: 'users' },
+  { label: 'Friends', path: '/friends', icon: 'users' },
+  { label: 'Profile', path: '/profile', icon: 'user' },
   { label: 'Leaderboards', path: '/leaderboards', icon: 'award' },
   { label: 'Settings', path: '/settings', icon: 'settings' },
 ] as const;

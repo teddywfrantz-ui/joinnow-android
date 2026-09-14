@@ -6,12 +6,32 @@ import {
   integer,
   boolean,
   doublePrecision,
+  foreignKey,
   unique,
-  jsonb
+  jsonb,
+  type ForeignKeyBuilder,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { relations } from "drizzle-orm";
+
+// These helpers keep the two explicit cross-table foreign keys lazy enough
+// for TypeScript while still making them part of the schema source of truth.
+function meetupsGroupForeignKey(column: any): ForeignKeyBuilder {
+  return foreignKey({
+    name: "meetups_group_id_fkey",
+    columns: [column],
+    foreignColumns: [groups.id],
+  });
+}
+
+function groupsCurrentMeetupForeignKey(column: any): ForeignKeyBuilder {
+  return foreignKey({
+    name: "groups_current_meetup_id_fkey",
+    columns: [column],
+    foreignColumns: [meetups.id],
+  });
+}
 
 // Users table - add new fields
 export const users = pgTable("users", {
@@ -129,7 +149,10 @@ export const meetups = pgTable("meetups", {
   genderFilter: text("gender_filter"),          // 'Male', 'Female', 'Other', or null for all
   minAgeFilter: integer("min_age_filter"),      // null for no minimum
   maxAgeFilter: integer("max_age_filter"),      // null for no maximum
-});
+  group_id: integer("group_id"),
+}, (table) => ({
+  groupForeignKey: meetupsGroupForeignKey(table.group_id),
+}));
 
 // Meetup Requests table - for joining meetups
 export const joinRequests = pgTable("join_requests", {
@@ -156,7 +179,76 @@ export const meetupParticipants = pgTable("meetup_participants", {
 export const groups = pgTable("groups", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
+  creator_id: integer("creator_id").references(() => users.id),
+  current_meetup_id: integer("current_meetup_id"),
   created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+  ended_at: timestamp("ended_at"),
+  ended_reason: text("ended_reason"),
+}, (table) => ({
+  currentMeetupForeignKey: groupsCurrentMeetupForeignKey(table.current_meetup_id),
+}));
+
+// A user belongs to at most one group at a time. Membership mutations also
+// check this invariant in a transaction so concurrent invitations are safe.
+export const groupMembers = pgTable("group_members", {
+  id: serial("id").primaryKey(),
+  group_id: integer("group_id").references(() => groups.id).notNull(),
+  user_id: integer("user_id").references(() => users.id).notNull(),
+  role: text("role").notNull().default("member"), // leader, member
+  created_at: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  uniqueMembership: unique().on(table.group_id, table.user_id),
+  uniqueUserGroup: unique().on(table.user_id),
+}));
+
+// Durable access intervals for group-chat history. A user can have multiple
+// rows when they leave and later rejoin; messages outside those intervals stay
+// private.
+export const groupMembershipHistory = pgTable("group_membership_history", {
+  id: serial("id").primaryKey(),
+  group_id: integer("group_id").references(() => groups.id).notNull(),
+  user_id: integer("user_id").references(() => users.id).notNull(),
+  joined_at: timestamp("joined_at").notNull(),
+  left_at: timestamp("left_at"),
+  left_reason: text("left_reason"), // left, removed, switched, disbanded
+  created_at: timestamp("created_at").defaultNow(),
+});
+
+export const groupInvitations = pgTable("group_invitations", {
+  id: serial("id").primaryKey(),
+  group_id: integer("group_id").references(() => groups.id).notNull(),
+  inviter_id: integer("inviter_id").references(() => users.id).notNull(),
+  invitee_id: integer("invitee_id").references(() => users.id).notNull(),
+  status: text("status").notNull().default("pending"), // pending, accepted, declined, cancelled
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueInvitation: unique().on(table.group_id, table.invitee_id),
+}));
+
+export const groupMeetupRequests = pgTable("group_meetup_requests", {
+  id: serial("id").primaryKey(),
+  group_id: integer("group_id").references(() => groups.id).notNull(),
+  meetup_id: integer("meetup_id").references(() => meetups.id).notNull(),
+  requester_id: integer("requester_id").references(() => users.id).notNull(),
+  status: text("status").notNull().default("pending"), // pending, accepted, rejected, cancelled
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueGroupMeetupRequest: unique().on(table.group_id, table.meetup_id),
+}));
+
+// Group chat is deliberately separate from meetup chat. Disbanded groups are
+// soft-ended so these messages remain available as read-only history.
+export const groupMessages = pgTable("group_messages", {
+  id: serial("id").primaryKey(),
+  group_id: integer("group_id")
+    .references(() => groups.id, { onDelete: "cascade" })
+    .notNull(),
+  user_id: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  created_at: timestamp("created_at").defaultNow().notNull(),
 });
 
 // Relations
@@ -167,6 +259,10 @@ export const meetupsRelations = relations(meetups, ({ one, many }) => ({
   }),
   joinRequests: many(joinRequests),
   participants: many(meetupParticipants),
+  group: one(groups, {
+    fields: [meetups.group_id],
+    references: [groups.id],
+  }),
 }));
 
 export const joinRequestsRelations = relations(joinRequests, ({ one }) => ({
@@ -271,7 +367,82 @@ export const userRelations = relations(users, ({ many }) => ({
   sentFriendRequests: many(friendRequests, { relationName: 'sender' }),
   receivedFriendRequests: many(friendRequests, { relationName: 'recipient' }),
   friends: many(friends, { relationName: 'userFriends' }),
-  meetHistory: many(meetHistory)
+  meetHistory: many(meetHistory),
+  createdGroups: many(groups, { relationName: "groupCreator" }),
+  groupMemberships: many(groupMembers),
+  sentGroupInvitations: many(groupInvitations, { relationName: "groupInviter" }),
+  receivedGroupInvitations: many(groupInvitations, { relationName: "groupInvitee" }),
+  groupMessages: many(groupMessages),
+}));
+
+export const groupsRelations = relations(groups, ({ one, many }) => ({
+  creator: one(users, {
+    fields: [groups.creator_id],
+    references: [users.id],
+    relationName: "groupCreator",
+  }),
+  currentMeetup: one(meetups, {
+    fields: [groups.current_meetup_id],
+    references: [meetups.id],
+  }),
+  members: many(groupMembers),
+  invitations: many(groupInvitations),
+  meetupRequests: many(groupMeetupRequests),
+  messages: many(groupMessages),
+}));
+
+export const groupMembersRelations = relations(groupMembers, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupMembers.group_id],
+    references: [groups.id],
+  }),
+  user: one(users, {
+    fields: [groupMembers.user_id],
+    references: [users.id],
+  }),
+}));
+
+export const groupInvitationsRelations = relations(groupInvitations, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupInvitations.group_id],
+    references: [groups.id],
+  }),
+  inviter: one(users, {
+    fields: [groupInvitations.inviter_id],
+    references: [users.id],
+    relationName: "groupInviter",
+  }),
+  invitee: one(users, {
+    fields: [groupInvitations.invitee_id],
+    references: [users.id],
+    relationName: "groupInvitee",
+  }),
+}));
+
+export const groupMeetupRequestsRelations = relations(groupMeetupRequests, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupMeetupRequests.group_id],
+    references: [groups.id],
+  }),
+  meetup: one(meetups, {
+    fields: [groupMeetupRequests.meetup_id],
+    references: [meetups.id],
+  }),
+  requester: one(users, {
+    fields: [groupMeetupRequests.requester_id],
+    references: [users.id],
+  }),
+}));
+
+export const groupMessagesRelations = relations(groupMessages, ({ one }) => ({
+  group: one(groups, {
+    fields: [groupMessages.group_id],
+    references: [groups.id],
+  }),
+  user: one(users, {
+    fields: [groupMessages.user_id],
+    references: [users.id],
+  }),
 }));
 
 
@@ -289,6 +460,14 @@ export const insertMeetupSchema = createInsertSchema(meetups).extend({
 export const selectMeetupSchema = createSelectSchema(meetups);
 export const insertGroupSchema = createInsertSchema(groups);
 export const selectGroupSchema = createSelectSchema(groups);
+export const insertGroupMemberSchema = createInsertSchema(groupMembers);
+export const selectGroupMemberSchema = createSelectSchema(groupMembers);
+export const insertGroupInvitationSchema = createInsertSchema(groupInvitations);
+export const selectGroupInvitationSchema = createSelectSchema(groupInvitations);
+export const insertGroupMeetupRequestSchema = createInsertSchema(groupMeetupRequests);
+export const selectGroupMeetupRequestSchema = createSelectSchema(groupMeetupRequests);
+export const insertGroupMessageSchema = createInsertSchema(groupMessages);
+export const selectGroupMessageSchema = createSelectSchema(groupMessages);
 export const insertUserSchema = createInsertSchema(users);
 export const selectUserSchema = createSelectSchema(users);
 export const insertJoinRequestSchema = createInsertSchema(joinRequests);
@@ -314,12 +493,25 @@ export const selectMeetHistorySchema = createSelectSchema(meetHistory);
 export type Meetup = typeof meetups.$inferSelect & {
   creator_username?: string;
   creator_displayName?: string;
+  creator_group_name?: string | null;
   participantCount?: number;
   pendingRequestCount?: number;
 };
 export type NewMeetup = typeof meetups.$inferInsert;
 export type Group = typeof groups.$inferSelect;
 export type NewGroup = typeof groups.$inferInsert;
+export type GroupMember = typeof groupMembers.$inferSelect;
+export type NewGroupMember = typeof groupMembers.$inferInsert;
+export type GroupInvitation = typeof groupInvitations.$inferSelect;
+export type NewGroupInvitation = typeof groupInvitations.$inferInsert;
+export type GroupMeetupRequest = typeof groupMeetupRequests.$inferSelect;
+export type NewGroupMeetupRequest = typeof groupMeetupRequests.$inferInsert;
+export type GroupMessage = typeof groupMessages.$inferSelect & {
+  username?: string;
+  displayName?: string | null;
+  profilePicture?: string | null;
+};
+export type NewGroupMessage = typeof groupMessages.$inferInsert;
 export type User = typeof users.$inferSelect & {
   receivedTraits?: UserTrait[];
   givenEndorsements?: UserTrait[];

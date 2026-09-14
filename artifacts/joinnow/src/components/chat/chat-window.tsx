@@ -43,9 +43,21 @@ interface ChatWindowProps {
   currentUsername: string;
   currentUserPicture?: string | null;
   isMobileChat?: boolean;
+  showToggleDetails?: boolean;
+  readOnly?: boolean;
+  statusMessage?: string;
 }
 
-export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUserPicture, isMobileChat }: ChatWindowProps) {
+export function ChatWindow({
+  meetupId,
+  currentUserId,
+  currentUsername,
+  currentUserPicture,
+  isMobileChat,
+  showToggleDetails = true,
+  readOnly = false,
+  statusMessage,
+}: ChatWindowProps) {
   const [message, setMessage] = useState('');
   const [localMessages, setLocalMessages] = useState<ChatMessage[]>([]);
   const [isError, setIsError] = useState(false);
@@ -126,7 +138,8 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
     }
   }, [messages]);
 
-  const { sendMessage, subscribe } = useWebSocket(meetupId);
+  // Historical transcripts load over HTTP and must never join a live room.
+  const { sendMessage, subscribe } = useWebSocket(readOnly ? undefined : meetupId);
 
   // Enhanced scroll to bottom function with added reliability - improved for mobile
   const scrollToBottom = useCallback((smooth = true) => {
@@ -327,7 +340,7 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim() || isSending) return;
+    if (readOnly || !message.trim() || isSending) return;
 
     const content = message.trim();
     if (content === lastMessageRef.current) {
@@ -486,7 +499,7 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
 
   // Handler for sending reaction to a message
   const handleMessageReaction = (messageId: string | undefined, emoji: string) => {
-    if (!messageId || isSending) return;
+    if (readOnly || !messageId || isSending) return;
     
     console.log(`Adding reaction: ${emoji} to message: ${messageId}`);
     
@@ -613,7 +626,7 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
   
   // Handler for quick emoji messages
   const handleQuickEmoji = (emoji: string) => {
-    if (isSending) return;
+    if (readOnly || isSending) return;
     
     setIsSending(true);
     const messageId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -699,13 +712,20 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
           }}
         >
           <div className="flex flex-col space-y-6 py-6 pb-[160px]"> {/* Extra bottom padding to ensure content isn't hidden behind input box */}
-            <button 
-              className="mx-auto mb-4 text-[15px] text-muted-foreground flex items-center gap-1 hover:text-primary transition-colors"
-              onClick={() => document.dispatchEvent(new CustomEvent('toggle-meetup-details'))}
-            >
-              <ChevronUp className="h-3 w-3" />
-              <span>Toggle details</span>
-            </button>
+            {readOnly && statusMessage && (
+              <div className="sticky top-2 z-10 mx-auto rounded-full border bg-background/95 px-4 py-2 text-center text-sm font-medium text-muted-foreground shadow-sm backdrop-blur">
+                {statusMessage}
+              </div>
+            )}
+            {showToggleDetails && (
+              <button
+                className="mx-auto mb-4 text-[15px] text-muted-foreground flex items-center gap-1 hover:text-primary transition-colors"
+                onClick={() => document.dispatchEvent(new CustomEvent('toggle-meetup-details'))}
+              >
+                <ChevronUp className="h-3 w-3" />
+                <span>Toggle details</span>
+              </button>
+            )}
             {localMessages.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">
                 No messages yet. Start the conversation!
@@ -854,7 +874,7 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
                           )}
                           
                           {/* Reaction button - always visible for all messages */}
-                          <Popover>
+                          {!readOnly && <Popover>
                             <PopoverTrigger asChild>
                               <Button 
                                 variant="ghost" 
@@ -886,7 +906,7 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
                                   ))}
                                 </div>
                               </PopoverContent>
-                            </Popover>
+                          </Popover>}
                         </div>
                       </div>
                     </div>
@@ -898,9 +918,11 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
         </div>
 
         {/* Message input box fixed at the bottom - fixed position with visible background */}
-        <div className={cn(
-          "p-3 border-t bg-background fixed bottom-0 shadow-lg z-50 w-full max-w-[100vw]",
-          isMobileChat ? "pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2" : "pb-3", // Extra padding for devices with notches/home indicators
+        {!readOnly && <div className={cn(
+          "p-3 border-t bg-background fixed shadow-lg z-50 w-full max-w-[100vw]",
+          isMobileChat
+            ? "bottom-[calc(4rem+env(safe-area-inset-bottom))] pb-3 pt-2"
+            : "bottom-0 pb-3",
           // Additional styling to ensure visibility
           "left-0 right-0 mx-auto"
         )}
@@ -989,7 +1011,7 @@ export function ChatWindow({ meetupId, currentUserId, currentUsername, currentUs
               ))}
             </div>
           </div>
-        </div>
+        </div>}
       </div>
 
       {/* UserProfileModal for profile picture clicks */}

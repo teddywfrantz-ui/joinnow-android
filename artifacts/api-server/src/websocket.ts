@@ -110,9 +110,21 @@ export function setupWebSocket(server: Server) {
         }
 
         if (message.type === 'join' && message.meetupId) {
-          const [meetup] = await db.select({ creatorId: meetups.creator_id }).from(meetups).where(eq(meetups.id, message.meetupId)).limit(1);
+          const [meetup] = await db
+            .select({
+              creatorId: meetups.creator_id,
+              expiresAt: meetups.expiresAt,
+            })
+            .from(meetups)
+            .where(eq(meetups.id, message.meetupId))
+            .limit(1);
           const participant = ws.userId ? await db.query.meetupParticipants.findFirst({ where: and(eq(meetupParticipants.meetup_id, message.meetupId), eq(meetupParticipants.user_id, ws.userId)) }) : null;
-          if (!ws.authenticated || !meetup || (meetup.creatorId !== ws.userId && !participant)) {
+          if (
+            !ws.authenticated ||
+            !meetup ||
+            meetup.expiresAt <= new Date() ||
+            (meetup.creatorId !== ws.userId && !participant)
+          ) {
             ws.send(JSON.stringify({ type: 'error', error: 'Not authorized for this meetup' }));
             ws.close(1008, 'Not authorized');
             return;

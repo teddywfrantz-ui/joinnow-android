@@ -1,6 +1,6 @@
 import type { Express, Request, Response } from "express";
 import { setupAuth } from "./auth";
-import { db, meetups, users, joinRequests, meetupParticipants, notifications, messages, meetHistory, traits, userTraits } from "@workspace/db";
+import { db, meetups, users, joinRequests, meetupParticipants, notifications, messages, meetHistory, traits, userTraits, groupMembers, groups } from "@workspace/db";
 import { eq, gte, and, sql, or, desc, ne } from "drizzle-orm";
 import type { Session } from "express-session";
 import { getUserStats } from "./services/stats";
@@ -26,6 +26,75 @@ interface AuthenticatedRequest extends Request {
 
 function isAuthenticated(req: Request): req is AuthenticatedRequest {
   return !!(req.session && typeof req.session.userId === 'number');
+}
+
+async function getLockedGroupForUser(userId: number, queryDb: any = db) {
+  const [membership] = await queryDb
+    .select({
+      groupId: groupMembers.group_id,
+      currentMeetupId: groups.current_meetup_id,
+      meetupExpiresAt: meetups.expiresAt,
+    })
+    .from(groupMembers)
+    .innerJoin(groups, eq(groupMembers.group_id, groups.id))
+    .leftJoin(meetups, eq(groups.current_meetup_id, meetups.id))
+    .where(
+      and(
+        eq(groupMembers.user_id, userId),
+        sql`${groups.current_meetup_id} IS NOT NULL`,
+      ),
+    )
+    .limit(1);
+  if (!membership?.currentMeetupId) return null;
+  if (membership.meetupExpiresAt && membership.meetupExpiresAt > new Date()) {
+    return membership;
+  }
+  await queryDb
+    .update(groups)
+    .set({ current_meetup_id: null, updated_at: new Date() })
+    .where(
+      and(
+        eq(groups.id, membership.groupId),
+        eq(groups.current_meetup_id, membership.currentMeetupId),
+      ),
+    );
+  return null;
+}
+
+async function lockUsers(tx: any, userIds: number[]) {
+  const orderedUserIds = [...new Set(userIds)].sort((a, b) => a - b);
+  if (orderedUserIds.length > 0) {
+    await tx.execute(
+      sql`SELECT g.id
+          FROM groups g
+          INNER JOIN group_members gm ON gm.group_id = g.id
+          WHERE gm.user_id IN (${sql.join(
+            orderedUserIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})
+          ORDER BY g.id
+          FOR UPDATE`,
+    );
+  }
+  if (orderedUserIds.length > 0) {
+    await tx.execute(
+      sql`SELECT id FROM users WHERE id IN (${sql.join(
+        orderedUserIds.map((id) => sql`${id}`),
+        sql`, `,
+      )}) ORDER BY id FOR UPDATE`,
+    );
+  }
+}
+
+async function lockUsersAndMeetup(
+  tx: any,
+  userIds: number[],
+  meetupId: number,
+) {
+  await lockUsers(tx, userIds);
+  await tx.execute(
+    sql`SELECT id FROM meetups WHERE id = ${meetupId} FOR UPDATE`,
+  );
 }
 
 export function registerRoutes(app: Express) {
@@ -316,8 +385,16 @@ export function registerRoutes(app: Express) {
     });
 
     try {
+      return await db.transaction(async (tx) => {
+      await lockUsers(tx, [userId]);
+      const lockedGroup = await getLockedGroupForUser(userId, tx);
+      if (lockedGroup) {
+        return res.status(409).json({
+          error: "Your group is already associated with a meetup. Leave that meetup before creating another one.",
+        });
+      }
       // Check if user already has an active meetup
-      const [existingMeetup] = await db
+      const [existingMeetup] = await tx
         .select({
           id: meetups.id
         })
@@ -335,7 +412,7 @@ export function registerRoutes(app: Express) {
       }
 
       // Check if user is participating in any active meetup
-      const [existingParticipation] = await db
+      const [existingParticipation] = await tx
         .select()
         .from(meetupParticipants)
         .innerJoin(meetups, eq(meetupParticipants.meetup_id, meetups.id))
@@ -352,7 +429,7 @@ export function registerRoutes(app: Express) {
       }
 
       // Cancel all pending join requests from this user
-      await db
+      await tx
         .update(joinRequests)
         .set({ status: 'cancelled' })
         .where(
@@ -363,7 +440,7 @@ export function registerRoutes(app: Express) {
         );
 
       // Create new meetup using the expiry time calculated by frontend
-      const [newMeetup] = await db
+      const [newMeetup] = await tx
         .insert(meetups)
         .values({
           title,
@@ -384,40 +461,24 @@ export function registerRoutes(app: Express) {
         .returning();
 
       // Add creator as participant
-      await db
+      await tx
         .insert(meetupParticipants)
         .values({
           meetup_id: newMeetup.id,
           user_id: userId
         });
-//Create meetup history log for Creator 
-console.log("🛠️ Preparing to insert into meetHistory...");
+      // Create meetup history log for creator within the same transaction.
+  await tx
+        .insert(meetHistory)
+        .values({
+          user_id: userId,
+          meetup_id: newMeetup.id,
+          joined_at: new Date(),
+        });
 
-try {
-  console.log("Inserting into meetHistory:", {
-    user_id: userId,  
-    meetup_id: newMeetup.id,
-    joined_at: new Date(),
-  });
-
-  await db
-  .insert(meetHistory)
-  .values({
-    user_id: userId,  
-    meetup_id: newMeetup.id,
-    joined_at: new Date(),
-  });
-
-
-  console.log("✅ Successfully inserted into meetHistory");
-
-} catch (error) {
-  console.error("❌ Error inserting into meetHistory:", error);
-}
-
-console.log(`Successfully created meetup ${newMeetup.id}`);
-res.json(newMeetup);
-
+      console.log(`Successfully created meetup ${newMeetup.id}`);
+      res.json(newMeetup);
+      });
 
     } catch (error) {
       console.error('Failed to create meetup:', error);
@@ -472,9 +533,12 @@ res.json(newMeetup);
           theme: meetups.theme,
           isPrivate: meetups.isPrivate,
           creator_id: meetups.creator_id,
+          group_id: meetups.group_id,
           expiresAt: meetups.expiresAt,
           createdAt: meetups.createdAt,
-          creator_username: users.username,
+          creator_username: sql<string | null>`CASE WHEN ${meetups.group_id} IS NOT NULL THEN ${groups.name} ELSE ${users.username} END`,
+          creator_displayName: sql<string | null>`CASE WHEN ${meetups.group_id} IS NOT NULL THEN ${groups.name} ELSE ${users.displayName} END`,
+          creator_group_name: groups.name,
           // Demographic filter fields
           genderFilter: meetups.genderFilter,
           minAgeFilter: meetups.minAgeFilter,
@@ -493,6 +557,7 @@ res.json(newMeetup);
         })
         .from(meetups)
         .leftJoin(users, eq(meetups.creator_id, users.id))
+        .leftJoin(groups, eq(meetups.group_id, groups.id))
         .where(gte(meetups.expiresAt, new Date()))
         .orderBy(meetups.createdAt);
 
@@ -599,9 +664,12 @@ res.json(newMeetup);
           theme: meetups.theme,
           isPrivate: meetups.isPrivate,
           creator_id: meetups.creator_id,
+          group_id: meetups.group_id,
           expiresAt: meetups.expiresAt,
           createdAt: meetups.createdAt,
-          creator_username: users.username,
+          creator_username: sql<string | null>`CASE WHEN ${meetups.group_id} IS NOT NULL THEN ${groups.name} ELSE ${users.username} END`,
+          creator_displayName: sql<string | null>`CASE WHEN ${meetups.group_id} IS NOT NULL THEN ${groups.name} ELSE ${users.displayName} END`,
+          creator_group_name: groups.name,
           // Demographic filter fields
           genderFilter: meetups.genderFilter,
           minAgeFilter: meetups.minAgeFilter,
@@ -620,6 +688,7 @@ res.json(newMeetup);
         })
         .from(meetups)
         .leftJoin(users, eq(meetups.creator_id, users.id))
+        .leftJoin(groups, eq(meetups.group_id, groups.id))
         .where(eq(meetups.id, meetupId))
         .limit(1);
 
@@ -789,8 +858,16 @@ res.json(newMeetup);
     console.log(`User ${userId} attempting to join meetup ${meetupId}`);
 
     try {
+      return await db.transaction(async (tx) => {
+      await lockUsersAndMeetup(tx, [userId], meetupId);
+      const lockedGroup = await getLockedGroupForUser(userId, tx);
+      if (lockedGroup) {
+        return res.status(409).json({
+          error: "Your group is already associated with a meetup. Leave that meetup before joining another one.",
+        });
+      }
       // First clean up any stale requests
-      await db
+      await tx
         .delete(joinRequests)
         .where(
           and(
@@ -807,7 +884,7 @@ res.json(newMeetup);
         );
 
       // Check if user is already in any active meetup
-      const existingParticipation = await db
+      const existingParticipation = await tx
         .select()
         .from(meetupParticipants)
         .innerJoin(meetups, eq(meetupParticipants.meetup_id, meetups.id))
@@ -826,7 +903,7 @@ res.json(newMeetup);
       }
 
       // Get meetup details with demographic filters
-      const [meetup] = await db
+      const [meetup] = await tx
         .select({
           id: meetups.id,
           title: meetups.title,
@@ -852,7 +929,7 @@ res.json(newMeetup);
       // Check if user meets the demographic requirements
       if (meetup.genderFilter || meetup.minAgeFilter || meetup.maxAgeFilter) {
         // Get user's demographic data
-        const [userData] = await db
+        const [userData] = await tx
           .select({
             gender: users.gender,
             birthday: users.birthday
@@ -905,7 +982,7 @@ res.json(newMeetup);
       }
 
       // Check if user already has a pending request
-      const existingRequest = await db
+      const existingRequest = await tx
         .select()
         .from(joinRequests)
         .where(
@@ -921,7 +998,7 @@ res.json(newMeetup);
         return res.status(400).json({ error: "Request already pending" });
       }
 
-      const [requester] = await db
+      const [requester] = await tx
         .select({
           username: users.username
         })
@@ -930,7 +1007,7 @@ res.json(newMeetup);
         .limit(1);
 
       // Create new request
-      const [newRequest] = await db
+      const [newRequest] = await tx
         .insert(joinRequests)
         .values({
           meetup_id: meetupId,
@@ -941,7 +1018,7 @@ res.json(newMeetup);
         .returning();
 
       // Create notification for meetup creator
-      await db
+      await tx
         .insert(notifications)
         .values({
           user_id: meetup.creator_id,
@@ -954,6 +1031,7 @@ res.json(newMeetup);
 
       console.log(`Successfully created join request ${newRequest.id} for meetup ${meetupId}`);
       res.json(newRequest);
+      });
     } catch (error) {
       console.error('Failed to create join request:', error);
       res.status(500).json({ error: "Failed to create join request" });
@@ -1169,10 +1247,21 @@ res.json(newMeetup);
       }
 
       // Update request status to cancelled
-      await db
+      const [cancelledRequest] = await db
         .update(joinRequests)
         .set({ status: 'cancelled' })
-        .where(eq(joinRequests.id, requestId));
+        .where(
+          and(
+            eq(joinRequests.id, requestId),
+            eq(joinRequests.meetup_id, meetupId),
+            eq(joinRequests.user_id, userId),
+            eq(joinRequests.status, 'pending'),
+          ),
+        )
+        .returning();
+      if (!cancelledRequest) {
+        return res.status(409).json({ error: "Request is no longer pending" });
+      }
 
       console.log(`Successfully cancelled request ${requestId}`);
       res.json({ message: "Request cancelled successfully" });
@@ -1218,6 +1307,9 @@ res.json(newMeetup);
       if (request.status !== 'pending') {
         return res.status(400).json({ error: "Request is no longer pending" });
       }
+      if (request.meetup_id !== meetupId) {
+        return res.status(404).json({ error: "Request not found for this meetup" });
+      }
 
       // Get meetup details including current participant count
       const [meetup] = await db
@@ -1248,7 +1340,13 @@ res.json(newMeetup);
         await db
           .update(joinRequests)
           .set({ status: 'rejected' })
-          .where(eq(joinRequests.id, requestId));
+            .where(
+              and(
+                eq(joinRequests.id, requestId),
+                eq(joinRequests.meetup_id, meetupId),
+                eq(joinRequests.status, 'pending'),
+              ),
+            );
 
         return res.status(400).json({
           error: "This meetup has expired",
@@ -1262,104 +1360,160 @@ res.json(newMeetup);
       }
 
       if (status === 'accepted') {
-        // Check if meetup is full before accepting
-        if (meetup.participantCount >= meetup.maxParticipants) {
-          return res.status(400).json({
-            error: "This meetup is full. Cannot accept more participants.",
-            status: 'pending'
-          });
-        }
-
-        // Check if user is already in any meetup
-        const existingParticipation = await db
-          .select()
-          .from(meetupParticipants)
-          .innerJoin(meetups, and(
-            eq(meetupParticipants.meetup_id, meetups.id),
-            gte(meetups.expiresAt, new Date())
-          ))
-          .where(eq(meetupParticipants.user_id, request.user_id))
-          .limit(1);
-
-        if (existingParticipation.length > 0) {
-          // Update request status to rejected
-          await db
-            .update(joinRequests)
-            .set({ status: 'rejected' })
-            .where(eq(joinRequests.id, requestId));
-
-          // Create notification for the requester
-          await db
-            .insert(notifications)
-            .values({
+        const acceptance = await db.transaction(async (tx) => {
+          await lockUsersAndMeetup(tx, [request.user_id], meetupId);
+          const [lockedRequest] = await tx
+            .select()
+            .from(joinRequests)
+            .where(
+              and(
+                eq(joinRequests.id, requestId),
+                eq(joinRequests.meetup_id, meetupId),
+                eq(joinRequests.status, 'pending'),
+              ),
+            )
+            .limit(1);
+          if (!lockedRequest) {
+            return { statusCode: 409, error: "Request is no longer pending" };
+          }
+          const [lockedMeetup] = await tx
+            .select({
+              title: meetups.title,
+              expiresAt: meetups.expiresAt,
+              maxParticipants: meetups.maxParticipants,
+              participantCount: sql<number>`(
+                SELECT COUNT(DISTINCT mp.user_id)
+                FROM ${meetupParticipants} mp
+                WHERE mp.meetup_id = ${meetups.id}
+              )`.mapWith(Number),
+            })
+            .from(meetups)
+            .where(eq(meetups.id, meetupId))
+            .limit(1);
+          if (!lockedMeetup) return { statusCode: 404, error: "Meetup not found" };
+          if (new Date(lockedMeetup.expiresAt) <= new Date()) {
+            await tx
+              .update(joinRequests)
+              .set({ status: 'rejected' })
+              .where(
+                and(
+                  eq(joinRequests.id, requestId),
+                  eq(joinRequests.status, 'pending'),
+                ),
+              );
+            return { statusCode: 400, error: "This meetup has expired", status: 'rejected' };
+          }
+          if (lockedMeetup.participantCount >= lockedMeetup.maxParticipants) {
+            return {
+              statusCode: 400,
+              error: "This meetup is full. Cannot accept more participants.",
+              status: 'pending',
+            };
+          }
+          const [lockedGroup] = await tx
+            .select({ currentMeetupId: groups.current_meetup_id, expiresAt: meetups.expiresAt })
+            .from(groupMembers)
+            .innerJoin(groups, eq(groupMembers.group_id, groups.id))
+            .leftJoin(meetups, eq(groups.current_meetup_id, meetups.id))
+            .where(eq(groupMembers.user_id, request.user_id))
+            .limit(1);
+          if (
+            lockedGroup?.currentMeetupId &&
+            lockedGroup.expiresAt &&
+            lockedGroup.expiresAt > new Date()
+          ) {
+            await tx
+              .update(joinRequests)
+              .set({ status: 'rejected' })
+              .where(
+                and(
+                  eq(joinRequests.id, requestId),
+                  eq(joinRequests.status, 'pending'),
+                ),
+              );
+            return {
+              statusCode: 409,
+              error: "This user belongs to a group that is already associated with a meetup",
+              status: 'rejected',
+            };
+          }
+          const existingParticipation = await tx
+            .select()
+            .from(meetupParticipants)
+            .innerJoin(meetups, and(
+              eq(meetupParticipants.meetup_id, meetups.id),
+              gte(meetups.expiresAt, new Date()),
+            ))
+            .where(eq(meetupParticipants.user_id, request.user_id))
+            .limit(1);
+          if (existingParticipation.length > 0) {
+            await tx
+              .update(joinRequests)
+              .set({ status: 'rejected' })
+              .where(
+                and(
+                  eq(joinRequests.id, requestId),
+                  eq(joinRequests.status, 'pending'),
+                ),
+              );
+            await tx.insert(notifications).values({
               user_id: request.user_id,
               title: "Join Request Rejected",
-              message: `Your request to join ${meetup.title} was rejected because you are already in another meet.`,
-              type: 'warning'
+              message: `Your request to join ${lockedMeetup.title} was rejected because you are already in another meet.`,
+              type: 'warning',
             });
-
-          return res.status(400).json({
-            error: "User is already participating in another meet",
-            status: 'rejected'
-          });
-        }
-
-        // Before accepting, cancel all other pending requests from this user
-        await db
-          .update(joinRequests)
-          .set({ status: 'cancelled' })
-          .where(
-            and(
-              eq(joinRequests.user_id, request.user_id),
-              eq(joinRequests.status, 'pending'),
-              sql`${joinRequests.id} != ${requestId}` // Don't cancel the current request
-            )
-          );
-
-        // Add to participants
-        await db
-          .insert(meetupParticipants)
-          .values({
+            return {
+              statusCode: 400,
+              error: "User is already participating in another meet",
+              status: 'rejected',
+            };
+          }
+          await tx
+            .update(joinRequests)
+            .set({ status: 'cancelled' })
+            .where(
+              and(
+                eq(joinRequests.user_id, request.user_id),
+                eq(joinRequests.status, 'pending'),
+                ne(joinRequests.id, requestId),
+              ),
+            );
+          await tx.insert(meetupParticipants).values({
             meetup_id: meetupId,
             user_id: request.user_id,
           });
-
-        
-         // Add to meet history when accepting participant request I think?
-      console.log("🛠️ Preparing to insert into meetHistory...");
-        
-        try {
-          console.log("Inserting into meetHistory:", {
+          await tx.insert(meetHistory).values({
             user_id: request.user_id,
             meetup_id: meetupId,
             joined_at: new Date(),
           });
-        
-          await db
-            .insert(meetHistory)
-            .values({
-              user_id: request.user_id,
-              meetup_id: meetupId,
-              joined_at: new Date(),
-            });
-        
-          console.log("✅ Successfully inserted into meetHistory");
-        
-        } catch (error) {
-          console.error("❌ Error inserting into meetHistory:", error);
-        }
-
-
-        // Create notification for accepted request
-        await db
-          .insert(notifications)
-          .values({
+          await tx.insert(notifications).values({
             user_id: request.user_id,
             title: "Join Request Accepted",
-            message: `Your request to join ${meetup.title} has been accepted!`,
+            message: `Your request to join ${lockedMeetup.title} has been accepted!`,
             type: 'success',
-            link: '/active-meet'
+            link: '/active-meet',
           });
+          const [acceptedRequest] = await tx
+            .update(joinRequests)
+            .set({ status: 'accepted' })
+            .where(
+              and(
+                eq(joinRequests.id, requestId),
+                eq(joinRequests.status, 'pending'),
+              ),
+            )
+            .returning();
+          if (!acceptedRequest) return { statusCode: 409, error: "Request is no longer pending" };
+          return { statusCode: 200, status: 'accepted' };
+        });
+        if (acceptance.statusCode !== 200) {
+          return res.status(acceptance.statusCode).json({
+            error: acceptance.error,
+            status: acceptance.status,
+          });
+        }
+        return res.json({ message: "Request accepted", status: "accepted" });
       } else {
         // Create notification for rejected request
         await db
@@ -1372,11 +1526,21 @@ res.json(newMeetup);
           });
       }
 
-      // Update request status
-      await db
+      // Update request status only while it is still pending.
+      const [updatedRequest] = await db
         .update(joinRequests)
         .set({ status })
-        .where(eq(joinRequests.id, requestId));
+        .where(
+          and(
+            eq(joinRequests.id, requestId),
+            eq(joinRequests.meetup_id, meetupId),
+            eq(joinRequests.status, 'pending'),
+          ),
+        )
+        .returning();
+      if (!updatedRequest) {
+        return res.status(409).json({ error: "Request is no longer pending" });
+      }
 
       console.log(`Successfully handled request ${requestId} with status ${status}`);
       res.json({ message: `Request ${status}`, status });
@@ -1404,7 +1568,24 @@ res.json(newMeetup);
         .from(meetupParticipants)
         .where(and(eq(meetupParticipants.meetup_id, meetupId), eq(meetupParticipants.user_id, req.session.userId)))
         .limit(1);
-      if (!meetupAccess || (meetupAccess.creatorId !== req.session.userId && !participantAccess)) {
+      const [historyAccess] = await db
+        .select({ id: meetHistory.id })
+        .from(meetHistory)
+        .where(
+          and(
+            eq(meetHistory.meetup_id, meetupId),
+            eq(meetHistory.user_id, req.session.userId),
+          ),
+        )
+        .limit(1);
+      if (
+        !meetupAccess ||
+        (
+          meetupAccess.creatorId !== req.session.userId &&
+          !participantAccess &&
+          !historyAccess
+        )
+      ) {
         return res.status(403).json({ error: "You are not a participant in this meetup" });
       }
       console.log(`Fetching messages for meetup ${meetupId}`);
@@ -1424,6 +1605,20 @@ res.json(newMeetup);
         FROM messages m
         LEFT JOIN users u ON m.user_id = u.id
         WHERE m.meetup_id = ${meetupId}
+          AND (
+            ${meetupAccess.creatorId === req.session.userId || Boolean(participantAccess)}
+            OR EXISTS (
+              SELECT 1
+              FROM meet_history history
+              WHERE history.meetup_id = m.meetup_id
+                AND history.user_id = ${req.session.userId}
+                AND m.created_at >= history.joined_at
+                AND (
+                  history.left_at IS NULL
+                  OR m.created_at <= history.left_at
+                )
+            )
+          )
         ORDER BY m.created_at ASC
       `);
       
@@ -1788,6 +1983,43 @@ console.log(`[Complete Meetup ${reqId}] ⏳ Updating meetup expiry time to now..
         return res.status(400).json({ error: "Cannot leave an expired meetup" });
       }
 
+      // A group meetup is owned by the group's membership lifecycle. Letting
+      // a member leave through the individual endpoint leaves the group
+      // pointer locked to a meetup the member no longer belongs to and makes
+      // the user appear to have a phantom active meetup. Use the group
+      // leave/disband flow instead so membership and participation are
+      // detached atomically.
+      const [groupMembership] = await db
+        .select({
+          groupId: groupMembers.group_id,
+          role: groupMembers.role,
+          currentMeetupId: groups.current_meetup_id,
+        })
+        .from(groupMembers)
+        .innerJoin(groups, eq(groupMembers.group_id, groups.id))
+        .where(
+          and(
+            eq(groupMembers.user_id, userId),
+            eq(groups.current_meetup_id, meetupId),
+          ),
+        )
+        .limit(1);
+      if (groupMembership) {
+        const leaderMessage =
+          "The group creator cannot leave a group meetup individually. Disband the group from My Group instead.";
+        const memberMessage =
+          "You cannot leave a group meetup individually. Leave the group from My Group to detach your participation.";
+        return res.status(409).json({
+          error:
+            groupMembership.role === "leader"
+              ? leaderMessage
+              : memberMessage,
+          code: "group_meetup_leave_requires_group_action",
+          groupId: groupMembership.groupId,
+          link: "/groups",
+        });
+      }
+
       // Verify user is a participant and not the creator
       if (meetup.creator_id === userId) {
         console.log(`Creator ${userId} attempted to leave their own meetup ${meetupId}`);
@@ -2014,7 +2246,13 @@ if (existingHistory) {
     }
 
     // Only allow users to update their own profile
-    const userId = parseInt(req.params.userId);
+    const userId =
+      req.params.userId === "me"
+        ? req.session.userId
+        : parseInt(req.params.userId);
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
     if (userId !== req.session.userId) {
       return res.status(403).json({ error: "Cannot update another user's profile" });
     }
@@ -2047,24 +2285,42 @@ if (existingHistory) {
 
   // Get user profile
   app.get("/api/users/:userId/profile", async (req, res) => {
+    if (!isAuthenticated(req)) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+
     try {
-      const userId = parseInt(req.params.userId);
+      const userId =
+        req.params.userId === "me"
+          ? req.session.userId
+          : parseInt(req.params.userId);
+      if (Number.isNaN(userId)) {
+        return res.status(400).json({ error: "Invalid user ID" });
+      }
       console.log(`Fetching profile for user ${userId}`);
 
-      // Get complete user profile with all fields
+      // Keep contact information and full birthdays limited to the profile
+      // owner. Other authenticated users receive only public profile data.
+      const isOwnProfile = req.session.userId === userId;
+      const publicUserFields = {
+        id: users.id,
+        username: users.username,
+        displayName: users.displayName,
+        bio: users.bio,
+        gender: users.gender,
+        createdAt: users.createdAt,
+        profilePicture: users.profilePicture,
+      };
       const [user] = await db
-        .select({
-          id: users.id,
-          username: users.username,
-          displayName: users.displayName,
-          bio: users.bio,
-          gender: users.gender,
-          birthday: users.birthday,
-          createdAt: users.createdAt,
-          email: users.email,
-          profilePicture: users.profilePicture
-          // Removed location field as it doesn't exist in the schema
-        })
+        .select(
+          isOwnProfile
+            ? {
+                ...publicUserFields,
+                email: users.email,
+                birthday: users.birthday,
+              }
+            : publicUserFields,
+        )
         .from(users)
         .where(eq(users.id, userId))
         .limit(1);
@@ -2131,7 +2387,8 @@ if (existingHistory) {
             'meetup', json_build_object(
               'title', m.title,
               'theme', m.theme,
-              'creator', u.username
+               'creator', CASE WHEN m.group_id IS NOT NULL THEN g.name ELSE u.username END,
+               'creatorGroupName', g.name
             ),
             'joinedAt', mh.joined_at,
             'leftAt', mh.left_at, 
@@ -2144,6 +2401,7 @@ if (existingHistory) {
         FROM meet_history mh
         JOIN meetups m ON m.id = mh.meetup_id 
         LEFT JOIN users u ON m.creator_id = u.id
+         LEFT JOIN groups g ON m.group_id = g.id
         WHERE mh.user_id = ${userId}
       `);
 
@@ -2264,11 +2522,13 @@ app.get("/api/users/:userId/meet-history", async (req, res) => {
         json_build_object(
           'title', m.title,
           'theme', m.theme,
-          'creator', u.username
+           'creator', CASE WHEN m.group_id IS NOT NULL THEN g.name ELSE u.username END,
+           'creatorGroupName', g.name
         ) as meetup
       FROM meet_history mh
       INNER JOIN meetups m ON mh.meetup_id = m.id
       INNER JOIN users u ON m.creator_id = u.id
+       LEFT JOIN groups g ON m.group_id = g.id
       WHERE mh.user_id = ${userId}
       ORDER BY mh.joined_at DESC
     `);
