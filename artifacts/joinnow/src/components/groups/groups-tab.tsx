@@ -1020,6 +1020,24 @@ function GroupScrollHint() {
     };
   }, []);
 
+  const scrollMore = () => {
+    const content = document.querySelector<HTMLElement>(
+      "[data-group-scroll-content]",
+    );
+    const scrollContainer = content?.closest<HTMLElement>("main");
+    if (!scrollContainer) return;
+
+    const remaining =
+      scrollContainer.scrollHeight -
+      scrollContainer.clientHeight -
+      scrollContainer.scrollTop;
+    const distance = Math.min(
+      remaining,
+      Math.max(160, scrollContainer.clientHeight * 0.72),
+    );
+    scrollContainer.scrollBy({ top: distance, behavior: "smooth" });
+  };
+
   if (!hasMoreBelow) return null;
 
   return (
@@ -1027,10 +1045,15 @@ function GroupScrollHint() {
       aria-hidden="true"
       className="pointer-events-none fixed inset-x-0 bottom-0 z-30 h-20 bg-gradient-to-t from-background via-background/75 to-transparent md:hidden"
     >
-      <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center rounded-full border bg-background/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+      <button
+        type="button"
+        aria-label="Scroll to see more group options"
+        onClick={scrollMore}
+        className="pointer-events-auto absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center rounded-full border bg-background/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm transition-colors hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
         <ChevronDown className="mr-1 h-3 w-3 animate-bounce" />
         More below
-      </div>
+      </button>
     </div>
   );
 }
