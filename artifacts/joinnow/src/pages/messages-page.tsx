@@ -46,6 +46,8 @@ function conversationKey(conversation: ConversationSummary) {
   return `${conversation.kind}:${conversation.id}`;
 }
 
+const MESSAGES_SELECTION_STORAGE_KEY = "joinnow:messages-selection";
+
 function statusLabel(status: ConversationStatus) {
   switch (status) {
     case "active":
@@ -87,7 +89,13 @@ function statusMessage(conversation: ConversationSummary) {
 function MessagesContent({ user }: { user: User }) {
   const [, setLocation] = useLocation();
   const isMobile = useIsMobile();
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(() => {
+    try {
+      return window.sessionStorage.getItem(MESSAGES_SELECTION_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  });
   const {
     data: conversations = [],
     isLoading,
@@ -108,10 +116,10 @@ function MessagesContent({ user }: { user: User }) {
   );
 
   useEffect(() => {
-    if (conversations.length === 0) {
-      setSelectedKey(null);
+    if (isLoading) {
       return;
     }
+
     const requestedKind = new URLSearchParams(window.location.search).get(
       "chat",
     );
@@ -127,10 +135,31 @@ function MessagesContent({ user }: { user: User }) {
       setSelectedKey(conversationKey(requested));
       return;
     }
-    if (!isMobile && !selectedConversation) {
-      setSelectedKey(conversationKey(conversations[0]));
+
+    if (
+      selectedKey &&
+      !conversations.some(
+        (conversation) => conversationKey(conversation) === selectedKey,
+      )
+    ) {
+      setSelectedKey(null);
     }
-  }, [conversations, isMobile, selectedConversation]);
+  }, [conversations, isLoading, selectedKey]);
+
+  useEffect(() => {
+    try {
+      if (selectedKey) {
+        window.sessionStorage.setItem(
+          MESSAGES_SELECTION_STORAGE_KEY,
+          selectedKey,
+        );
+      } else {
+        window.sessionStorage.removeItem(MESSAGES_SELECTION_STORAGE_KEY);
+      }
+    } catch {
+      // Session storage may be unavailable in restricted browser contexts.
+    }
+  }, [selectedKey]);
 
   if (isLoading) {
     return (
