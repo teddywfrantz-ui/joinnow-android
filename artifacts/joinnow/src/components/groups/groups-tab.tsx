@@ -288,13 +288,14 @@ function GroupMeetupCreator({ group }: { group: CurrentGroup }) {
   const [, setLocation] = useLocation();
   return (
     <ActionButton
+      className="w-full"
       onClick={() =>
         setLocation(
           `/map?createMeetup=1&groupId=${encodeURIComponent(group.id)}`,
         )
       }
     >
-      <Plus className="mr-1 h-4 w-4" /> Create meetup for group
+      <Plus className="mr-1 h-4 w-4" /> Create Meet for group
     </ActionButton>
   );
 }
@@ -512,40 +513,30 @@ function GroupDetails({ group }: { group: CurrentGroup }) {
         </Card>
       ) : (
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Choose what happens next
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Request another group&apos;s meetup, or create one for everyone in
-              this group.
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Plan your next Meet</CardTitle>
+            <p className="hidden text-sm text-muted-foreground sm:block">
+              Create a Meet for your group or browse available Meets.
             </p>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {group.viewerRole === "leader" && (
-              <GroupMeetupCreator group={group} />
-            )}
-            <div className="rounded-lg border border-dashed p-4">
-              <p className="text-sm font-medium">Find a meetup for everyone</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Use the same map or list cards as individual members. Choosing
-                <span className="font-medium text-foreground">
-                  {" "}
-                  Request for group
-                </span>{" "}
-                sends one request for all current members.
-              </p>
+          <CardContent className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {group.viewerRole === "leader" && (
+                <div className="flex-1">
+                  <GroupMeetupCreator group={group} />
+                </div>
+              )}
               <Button
-                className="mt-3"
+                className="w-full sm:flex-1"
                 variant="outline"
                 onClick={() => setLocation("/map")}
               >
-                <Send className="mr-1 h-4 w-4" /> Browse meetups on the map
+                <Send className="mr-1 h-4 w-4" /> Browse Meets
               </Button>
             </div>
             {group.pendingMeetupRequests.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Pending requests</p>
+              <div className="space-y-2 border-t pt-3">
+                <p className="text-sm font-medium">Pending Meet requests</p>
                 {group.pendingMeetupRequests.map((requestItem) => (
                   <div
                     key={requestItem.id}
