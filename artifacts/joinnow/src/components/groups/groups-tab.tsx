@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import {
   Check,
   ChevronRight,
+  ChevronDown,
   Edit3,
   Eye,
   Loader2,
@@ -996,6 +997,53 @@ function GroupDetails({ group }: { group: CurrentGroup }) {
   );
 }
 
+function GroupScrollHint() {
+  const [hasMoreBelow, setHasMoreBelow] = useState(false);
+
+  useEffect(() => {
+    const content = document.querySelector<HTMLElement>(
+      "[data-group-scroll-content]",
+    );
+    const scrollContainer = content?.closest<HTMLElement>("main");
+    if (!content || !scrollContainer) return;
+
+    const update = () => {
+      const remaining =
+        scrollContainer.scrollHeight -
+        scrollContainer.clientHeight -
+        scrollContainer.scrollTop;
+      setHasMoreBelow(remaining > 12);
+    };
+
+    update();
+    scrollContainer.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+
+    const resizeObserver = new ResizeObserver(update);
+    resizeObserver.observe(content);
+
+    return () => {
+      scrollContainer.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      resizeObserver.disconnect();
+    };
+  }, []);
+
+  if (!hasMoreBelow) return null;
+
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-30 h-20 bg-gradient-to-t from-background via-background/75 to-transparent md:hidden"
+    >
+      <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center rounded-full border bg-background/90 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+        <ChevronDown className="mr-1 h-3 w-3 animate-bounce" />
+        More below
+      </div>
+    </div>
+  );
+}
+
 export function GroupsTab() {
   const { currentGroup, isLoading } = useGroups();
   if (isLoading) {
@@ -1006,7 +1054,10 @@ export function GroupsTab() {
     );
   }
   return (
-    <div className="mx-auto max-w-3xl space-y-5 p-4">
+    <div
+      className="mx-auto max-w-3xl space-y-5 p-4"
+      data-group-scroll-content
+    >
       <div>
         <h2 className="text-2xl font-semibold">My group</h2>
         <p className="text-sm text-muted-foreground">
@@ -1022,6 +1073,7 @@ export function GroupsTab() {
       ) : (
         <EmptyGroupState />
       )}
+      <GroupScrollHint />
     </div>
   );
 }
