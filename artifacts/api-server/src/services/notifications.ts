@@ -1,5 +1,5 @@
-import { db, users, notifications } from "@workspace/db";
-import { eq, sql } from "drizzle-orm";
+import { db, users, notifications, pushTokens } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import { sendNotificationEmail } from "./email";
 
 /**
@@ -15,7 +15,21 @@ export type NotificationType =
   | 'meetupCancelled'
   | 'joinRequestAccepted'
   | 'joinRequestRejected'
-  | 'friendRequestAccepted';
+  | 'friendRequestAccepted'
+  | 'info'
+  | 'warning'
+  | 'success'
+  | 'error'
+  | 'friend_request'
+  | 'friend_accepted'
+  | 'friend_rejected';
+
+export type PushNotification = {
+  title: string;
+  message: string;
+  link?: string;
+  notificationId?: number;
+};
 
 // Map notification types to their email notification setting
 const notificationTypeToSettingMap = {
@@ -43,7 +57,8 @@ export async function createNotification(
   title: string,
   message: string,
   type: NotificationType,
-  sourceId?: number
+  _sourceId?: number,
+  link?: string,
 ): Promise<number | null> {
   try {
     // First, get the user to check their notification preferences
@@ -64,18 +79,18 @@ export async function createNotification(
         user_id: userId,
         title,
         message,
-        source_id: sourceId,
-        notification_type: type,
+        type,
         isRead: false,
-        isSeen: false
+        isSeen: false,
+        link,
       })
       .returning();
 
     // Get the appropriate email notification setting for this notification type
-    const emailSettingKey = notificationTypeToSettingMap[type] as EmailSettingType;
+    const emailSettingKey = notificationTypeToSettingMap[type];
 
     // Send email notification if applicable
-    if (user.email) {
+    if (user.email && emailSettingKey) {
       await sendNotificationEmail(
         user,
         title,
@@ -84,10 +99,83 @@ export async function createNotification(
       );
     }
 
+    await sendPushNotification(userId, {
+      title,
+      message,
+      link,
+      notificationId: notification.id,
+    });
+
     return notification.id;
   } catch (error) {
     console.error('Error creating notification:', error);
     return null;
+  }
+}
+
+/**
+ * Translate the existing in-app notification into the native push shape:
+ * title -> Android title, message -> Android body, link -> tap destination.
+ */
+export async function sendPushNotification(
+  userId: number,
+  notification: PushNotification,
+): Promise<void> {
+  try {
+    const [user] = await db
+      .select({ settings: users.settings })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    const settings = user?.settings as
+      | { notifications?: { pushNotifications?: boolean } }
+      | null
+      | undefined;
+    if (settings?.notifications?.pushNotifications === false) return;
+
+    const tokens = await db
+      .select({ id: pushTokens.id, token: pushTokens.token })
+      .from(pushTokens)
+      .where(eq(pushTokens.user_id, userId));
+    if (tokens.length === 0) return;
+
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(
+        tokens.map(({ token }) => ({
+          to: token,
+          title: notification.title,
+          body: notification.message,
+          sound: "default",
+          channelId: "joinnow",
+          data: {
+            link: notification.link ?? "/notifications",
+            notificationId: notification.notificationId,
+          },
+        })),
+      ),
+    });
+    if (!response.ok) {
+      throw new Error(`Expo push service returned ${response.status}`);
+    }
+
+    const result = (await response.json()) as {
+      data?: Array<{ details?: { error?: string } }>;
+    };
+    const invalidTokenIds = tokens
+      .map((token, index) => ({
+        id: token.id,
+        error: result.data?.[index]?.details?.error,
+      }))
+      .filter(({ error }) => error === "DeviceNotRegistered")
+      .map(({ id }) => id);
+    for (const id of invalidTokenIds) {
+      await db.delete(pushTokens).where(eq(pushTokens.id, id));
+    }
+  } catch (error) {
+    // Push delivery must never make the underlying in-app event fail.
+    console.error("Failed to send push notification:", error);
   }
 }
 

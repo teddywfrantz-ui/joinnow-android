@@ -11,6 +11,7 @@ import settingsRouter from "./routes/settings";
 import leaderboardsRouter from "./routes/leaderboards";
 import authTestRouter from "./routes/auth-test";
 import tokenTestRouter from "./routes/token-test";
+import { sendPushNotification } from "./services/notifications";
 import bcrypt from "bcryptjs";
 
 // Add Express Request type with session
@@ -1028,6 +1029,11 @@ export function registerRoutes(app: Express) {
           relatedId: newRequest.id,
           link: '/active-meet'
         });
+      await sendPushNotification(meetup.creator_id, {
+        title: "New Join Request",
+        message: `${requester.username} has requested to join your meet "${meetup.title}"`,
+        link: "/active-meet",
+      });
 
       console.log(`Successfully created join request ${newRequest.id} for meetup ${meetupId}`);
       res.json(newRequest);
@@ -1462,6 +1468,10 @@ export function registerRoutes(app: Express) {
               message: `Your request to join ${lockedMeetup.title} was rejected because you are already in another meet.`,
               type: 'warning',
             });
+            await sendPushNotification(request.user_id, {
+              title: "Join Request Rejected",
+              message: `Your request to join ${lockedMeetup.title} was rejected because you are already in another meet.`,
+            });
             return {
               statusCode: 400,
               error: "User is already participating in another meet",
@@ -1494,6 +1504,11 @@ export function registerRoutes(app: Express) {
             type: 'success',
             link: '/active-meet',
           });
+          await sendPushNotification(request.user_id, {
+            title: "Join Request Accepted",
+            message: `Your request to join ${lockedMeetup.title} has been accepted!`,
+            link: "/active-meet",
+          });
           const [acceptedRequest] = await tx
             .update(joinRequests)
             .set({ status: 'accepted' })
@@ -1524,6 +1539,10 @@ export function registerRoutes(app: Express) {
             message: `Your request to join ${meetup.title} was rejected.`,
             type: 'warning'
           });
+        await sendPushNotification(request.user_id, {
+          title: "Join Request Rejected",
+          message: `Your request to join ${meetup.title} was rejected.`,
+        });
       }
 
       // Update request status only while it is still pending.
@@ -1739,8 +1758,8 @@ export function registerRoutes(app: Express) {
         .where(eq(meetupParticipants.meetup_id, meetupId));
 
       // Create notifications for all participants using raw SQL to avoid column naming issues
-      await Promise.all(participants.map(participant => 
-        db.execute(sql`
+      await Promise.all(participants.map(async (participant) => {
+        await db.execute(sql`
           INSERT INTO notifications 
           (user_id, title, message, type, created_at)
           VALUES 
@@ -1749,8 +1768,12 @@ export function registerRoutes(app: Express) {
            ${`The meetup "${meetup.title}" has been extended by ${hours} hour${hours > 1 ? 's' : ''}`}, 
            ${'info'},
            ${new Date()})
-        `)
-      ));
+        `);
+        await sendPushNotification(participant.user_id, {
+          title: "Meetup Extended",
+          message: `The meetup "${meetup.title}" has been extended by ${hours} hour${hours > 1 ? 's' : ''}`,
+        });
+      }));
 
       console.log(`Successfully extended meetup ${meetupId} by ${hours} hours`);
       res.json(updatedMeetup);
@@ -1873,15 +1896,20 @@ console.log(`[Complete Meetup ${reqId}] ⏳ Updating meetup expiry time to now..
         .returning();
 
       // Create notifications for all participants
-      await Promise.all(participants.map(participant =>
-        db.insert(notifications).values({
+      await Promise.all(participants.map(async (participant) => {
+        await db.insert(notifications).values({
           user_id: participant.user_id,
           title: "Meetup Ended",
           message: `The meetup "${meetup.title}" has been ended by the creator.`,
           type: 'info',
           link: '/rate/' + meetupId
-        })
-      ));
+        });
+        await sendPushNotification(participant.user_id, {
+          title: "Meetup Ended",
+          message: `The meetup "${meetup.title}" has been ended by the creator.`,
+          link: `/rate/${meetupId}`,
+        });
+      }));
 
       console.log(`[Complete Meetup ${reqId}] Successfully completed meetup ${meetupId}`);
       res.json({ message: "Meetup completed successfully", meetup: updatedMeetup });
@@ -1945,6 +1973,10 @@ console.log(`[Complete Meetup ${reqId}] ⏳ Updating meetup expiry time to now..
           message: `You have been removed from the meetup "${meetup.title}"`,
           type: 'warning'
         });
+      await sendPushNotification(participantId, {
+        title: "Removed from Meetup",
+        message: `You have been removed from the meetup "${meetup.title}"`,
+      });
 
       console.log(`Successfully removed participant ${participantId} from meetup ${meetupId}`);
       res.json({ message: "Participant removed successfully" });

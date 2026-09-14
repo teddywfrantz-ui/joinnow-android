@@ -9,6 +9,7 @@ import {
   foreignKey,
   unique,
   jsonb,
+  index,
   type ForeignKeyBuilder,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
@@ -95,6 +96,15 @@ export const notifications = pgTable("notifications", {
   isSeen: boolean("is_seen").default(false),
   link: text("link"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const pushTokens = pgTable("push_tokens", {
+  id: serial("id").primaryKey(),
+  user_id: integer("user_id").references(() => users.id).notNull(),
+  token: text("token").notNull().unique(),
+  platform: text("platform").notNull().default("android"),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+  updated_at: timestamp("updated_at").defaultNow().notNull(),
 });
 
 // Traits table for storing available traits
@@ -213,7 +223,12 @@ export const groupMembershipHistory = pgTable("group_membership_history", {
   left_at: timestamp("left_at"),
   left_reason: text("left_reason"), // left, removed, switched, disbanded
   created_at: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  groupUserIndex: index("group_membership_history_group_user_idx").on(
+    table.group_id,
+    table.user_id,
+  ),
+}));
 
 export const groupInvitations = pgTable("group_invitations", {
   id: serial("id").primaryKey(),
@@ -373,6 +388,7 @@ export const userRelations = relations(users, ({ many }) => ({
   sentGroupInvitations: many(groupInvitations, { relationName: "groupInviter" }),
   receivedGroupInvitations: many(groupInvitations, { relationName: "groupInvitee" }),
   groupMessages: many(groupMessages),
+  pushTokens: many(pushTokens),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({

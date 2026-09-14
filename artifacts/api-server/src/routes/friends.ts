@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createNotification } from "../services/notifications";
 import { db } from "@workspace/db";
 import { and, eq, or, sql, not, desc, ne } from "drizzle-orm";
 import { friends, friendRequests, users, notifications, meetups, meetupParticipants, userTraits, traits, meetHistory } from "@workspace/db";
@@ -115,16 +116,14 @@ router.post("/api/friends/requests", async (req, res) => {
     }
 
     // Create notification
-    await db.insert(notifications).values({
-      user_id: recipientId,
-      title: "New Friend Request",
-      message: `${sender.username} sent you a friend request`,
-      type: "friend_request",
-      is_read: false,
-      is_seen: false,
-      link: '/friends',
-      created_at: new Date()
-    });
+    await createNotification(
+      recipientId,
+      "New Friend Request",
+      `${sender.username} sent you a friend request`,
+      "friend_request",
+      undefined,
+      "/friends",
+    );
 
     return res.json(newRequest);
   } catch (error) {
@@ -137,6 +136,10 @@ router.post("/api/friends/requests", async (req, res) => {
 
 // Get user profile with meet history
 router.get("/api/users/:userId/profile", async (req, res) => {
+  if (!isAuthenticated(req)) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
   try {
     let targetUserId = req.params.userId;
 
@@ -595,18 +598,16 @@ router.post("/api/friends/requests/:id", async (req, res) => {
       .returning();
 
     // Create notification for sender based on status
-    await db.insert(notifications).values({
-      user_id: request.sender_id,
-      title: status === 'accepted' ? "Friend Request Accepted" : "Friend Request Rejected",
-      message: status === 'accepted'
+    await createNotification(
+      request.sender_id,
+      status === "accepted" ? "Friend Request Accepted" : "Friend Request Rejected",
+      status === "accepted"
         ? `${responder.username} accepted your friend request`
         : `${responder.username} rejected your friend request`,
-      type: status === 'accepted' ? 'friend_accepted' : 'friend_rejected',
-      isRead: false,
-      isSeen: false,
-      link: '/friends',
-      created_at: new Date()
-    });
+      status === "accepted" ? "friend_accepted" : "friend_rejected",
+      undefined,
+      "/friends",
+    );
 
     // If accepted, create friendship
     if (status === 'accepted') {

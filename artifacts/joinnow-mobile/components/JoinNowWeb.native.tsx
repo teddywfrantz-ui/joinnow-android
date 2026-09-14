@@ -4,12 +4,15 @@ import {
   Image,
   Keyboard,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import Constants from 'expo-constants';
+import * as Notifications from 'expo-notifications';
 import WebView from 'react-native-webview/lib/WebView.android';
 import type {
   WebViewHttpErrorEvent,
@@ -26,6 +29,15 @@ const JOINNOW_URL = /^https?:\/\//.test(configuredHost)
   : `https://${configuredHost}`;
 const JOINNOW_ORIGIN = new URL(JOINNOW_URL).origin;
 const ANDROID_USER_AGENT = 'JoinNowAndroid/1.0';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 const ANDROID_BRIDGE_SCRIPT = `
   (() => {
@@ -359,6 +371,25 @@ const MAIN_TABS = [
   { label: 'Group', path: '/groups', icon: 'users' },
 ] as const;
 
+function pushTokenSyncScript(token: string) {
+  return `
+    (() => {
+      const sync = () => fetch('/api/push-tokens', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: ${JSON.stringify(JSON.stringify({ token, platform: 'android' }))}
+      }).catch(() => {});
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', sync, { once: true });
+      } else {
+        sync();
+      }
+      return true;
+    })();
+  `;
+}
+
 const MORE_TABS = [
   { label: 'Friends', path: '/friends', icon: 'users' },
   { label: 'Profile', path: '/profile', icon: 'user' },
@@ -375,6 +406,55 @@ export function JoinNowWeb() {
   const [failed, setFailed] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [pushToken, setPushToken] = useState<string | null>(null);
+
+  const syncPushToken = useCallback(() => {
+    if (!pushToken) return;
+    webView.current?.injectJavaScript(pushTokenSyncScript(pushToken));
+  }, [pushToken]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+
+    let cancelled = false;
+    const registerForPushNotifications = async () => {
+      try {
+        await Notifications.setNotificationChannelAsync('joinnow', {
+          name: 'JoinNow',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          sound: 'default',
+          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        });
+        const current = await Notifications.getPermissionsAsync();
+        const permission = current.granted
+          ? current
+          : await Notifications.requestPermissionsAsync();
+        if (!permission.granted) return;
+
+        const projectId =
+          Constants.expoConfig?.extra?.eas?.projectId ??
+          Constants.easConfig?.projectId;
+        const tokenResponse = await Notifications.getExpoPushTokenAsync(
+          projectId ? { projectId } : undefined,
+        );
+        if (!cancelled) setPushToken(tokenResponse.data);
+      } catch (error) {
+        console.warn('JoinNow push registration failed', error);
+      }
+    };
+
+    void registerForPushNotifications();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pushToken) return;
+    const timeout = setTimeout(syncPushToken, 300);
+    return () => clearTimeout(timeout);
+  }, [pushToken, syncPushToken]);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
@@ -418,7 +498,8 @@ export function JoinNowWeb() {
     } catch {
       // Keep the last known route if Android reports a transient invalid URL.
     }
-  }, []);
+    if (pushToken) setTimeout(syncPushToken, 250);
+  }, [pushToken, syncPushToken]);
 
   const onMessage = useCallback((event: WebViewMessageEvent) => {
     try {
@@ -446,6 +527,21 @@ export function JoinNowWeb() {
       true;
     `);
   }, []);
+
+  useEffect(() => {
+    const openNotificationLink = (response: Notifications.NotificationResponse) => {
+      const link = response.notification.request.content.data?.link;
+      if (typeof link === 'string' && link.startsWith('/')) {
+        navigateTo(link);
+      }
+    };
+    const subscription =
+      Notifications.addNotificationResponseReceivedListener(openNotificationLink);
+    void Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) openNotificationLink(response);
+    });
+    return () => subscription.remove();
+  }, [navigateTo]);
 
   const isSelected = useCallback((path: string) => {
     if (path === '/map') return currentPath === '/' || currentPath.startsWith('/map');
@@ -514,7 +610,10 @@ export function JoinNowWeb() {
         setSupportMultipleWindows={false}
         onNavigationStateChange={onNavigationStateChange}
         onMessage={onMessage}
-        onLoadEnd={() => webView.current?.injectJavaScript(ANDROID_BRIDGE_SCRIPT)}
+         onLoadEnd={() => {
+           webView.current?.injectJavaScript(ANDROID_BRIDGE_SCRIPT);
+           syncPushToken();
+         }}
         onShouldStartLoadWithRequest={(request) => {
           try {
             const url = new URL(request.url);

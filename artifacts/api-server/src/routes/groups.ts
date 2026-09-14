@@ -28,6 +28,7 @@ import {
   users,
 } from "@workspace/db";
 import { groupEligibilityError, hasCapacity } from "../lib/group-rules";
+import { createNotification } from "../services/notifications";
 
 const router = Router();
 
@@ -504,14 +505,10 @@ async function notifyUsers(
   link = "/groups",
 ) {
   if (userIds.length === 0) return;
-  await db.insert(notifications).values(
-    userIds.map((userId) => ({
-      user_id: userId,
-      title,
-      message,
-      type: "info",
-      link,
-    })),
+  await Promise.all(
+    userIds.map((userId) =>
+      createNotification(userId, title, message, "info", undefined, link),
+    ),
   );
 }
 

@@ -5,6 +5,8 @@ import router from "./routes";
 import friendRoutes from "./routes/friends";
 import { registerRoutes } from "./legacy-routes";
 import { logger } from "./lib/logger";
+import groupRoutes from "./routes/groups";
+import pushTokenRoutes from "./routes/push-tokens";
 
 const app: Express = express();
 
@@ -38,6 +40,8 @@ app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
 app.use("/api", router);
 registerRoutes(app);
+app.use(groupRoutes);
 app.use(friendRoutes);
+app.use(pushTokenRoutes);
 
 export default app;
