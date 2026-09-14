@@ -3,7 +3,7 @@ name: Conversation navigation
 description: Product direction for organizing group, meetup, and possible future direct-message conversations.
 ---
 
-Use a dedicated Messages destination as the shared conversation hub. Group management should show a compact shortcut instead of embedding the full group chat, while active meetups may retain their contextual chat entry. On mobile and the Android wrapper, keep Map, Active, Messages, Group, and More in the bottom bar; place Profile, Friends, Leaderboards, and Settings inside More.
+Use a dedicated Messages destination as the shared conversation hub. Group management should show a compact shortcut instead of embedding the full group chat, while active meetups may retain their contextual chat entry. On mobile and the Android wrapper, keep Map, Active, Messages, Group, and More in the bottom bar; place Profile, Friends, Leaderboards, and Settings inside More. In the Android wrapper, use its native bottom bar and suppress the embedded web bar so only one row is visible.
 
 Preserve ended conversations as read-only history. Former group members may read messages only from membership intervals; messages sent after leaving or removal and while absent before a rejoin remain private. Disbanded groups and completed meetups retain eligible members' transcripts.
 
