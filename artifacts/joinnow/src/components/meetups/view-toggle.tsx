@@ -49,7 +49,10 @@ export function ViewToggle({ view, onChange }: ViewToggleProps) {
           "hover:bg-muted"
         )}
       >
-        <List className="h-4 w-4" />
+        <List
+          className="h-4 w-4 !text-blue-600"
+          stroke="#2563eb"
+        />
       </ToggleGroupItem>
     </ToggleGroup>
   );
