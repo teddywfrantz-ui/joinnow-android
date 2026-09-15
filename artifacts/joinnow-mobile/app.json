@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "JoinNow",
-    "slug": "joinnow-mobile",
+    "slug": "joinnow",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
