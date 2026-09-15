@@ -13,4 +13,8 @@ if (!process.env.DATABASE_URL) {
 export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 export const db = drizzle(pool, { schema });
 
+export async function closePool(): Promise<void> {
+  await pool.end();
+}
+
 export * from "./schema";
