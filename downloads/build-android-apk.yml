@@ -1,0 +1,101 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      backend_domain:
+        description: "Production backend domain, without https://"
+        required: true
+        default: "join-up--teddywfrantz.replit.app"
+  push:
+    branches:
+      - main
+    paths:
+      - "artifacts/joinnow-mobile/**"
+      - "lib/api-client-react/**"
+      - "lib/api-spec/**"
+      - "lib/api-zod/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".github/workflows/build-android-apk.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Build installable APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      EXPO_PUBLIC_DOMAIN: ${{ inputs.backend_domain || vars.EXPO_PUBLIC_DOMAIN || 'join-up--teddywfrantz.replit.app' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Free runner disk space
+        run: |
+          echo "Disk space before cleanup:"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /opt/az
+          sudo docker image prune --all --force || true
+          echo "Disk space after cleanup:"
+          df -h
+
+      - name: Validate backend domain
+        run: |
+          if [ -z "$EXPO_PUBLIC_DOMAIN" ]; then
+            echo "::error::Set the repository variable EXPO_PUBLIC_DOMAIN or provide backend_domain when starting the workflow."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --filter @workspace/joinnow-mobile... --frozen-lockfile
+
+      - name: Generate Android project
+        working-directory: artifacts/joinnow-mobile
+        run: pnpm exec expo prebuild --platform android --clean --no-install
+
+      - name: Build standalone release APK
+        working-directory: artifacts/joinnow-mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Collect APK
+        run: |
+          mkdir -p apk-output
+          cp artifacts/joinnow-mobile/android/app/build/outputs/apk/release/app-release.apk \
+            apk-output/JoinNow-Android.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: JoinNow-Android-APK
+          path: apk-output/JoinNow-Android.apk
+          if-no-files-found: error
+          retention-days: 30
