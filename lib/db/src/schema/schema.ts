@@ -58,7 +58,10 @@ export const meetHistory = pgTable("meet_history", {
   joined_at: timestamp("joined_at").notNull(), 
   left_at: timestamp("left_at"),
   created_at: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  userJoinedAtIndex: index("meet_history_user_joined_at_idx").on(table.user_id, table.joined_at),
+  meetupIndex: index("meet_history_meetup_idx").on(table.meetup_id),
+}));
 
 
 // Friend requests table
@@ -105,7 +108,9 @@ export const pushTokens = pgTable("push_tokens", {
   platform: text("platform").notNull().default("android"),
   created_at: timestamp("created_at").defaultNow().notNull(),
   updated_at: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  userIndex: index("push_tokens_user_idx").on(table.user_id),
+}));
 
 // Traits table for storing available traits
 export const traits = pgTable("traits", {
@@ -183,7 +188,11 @@ export const meetupParticipants = pgTable("meetup_participants", {
   meetup_id: integer("meetup_id").references(() => meetups.id).notNull(),
   user_id: integer("user_id").references(() => users.id).notNull(),
   created_at: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  uniqueParticipant: unique().on(table.meetup_id, table.user_id),
+  meetupIndex: index("meetup_participants_meetup_idx").on(table.meetup_id),
+  userIndex: index("meetup_participants_user_idx").on(table.user_id),
+}));
 
 // Groups table
 export const groups = pgTable("groups", {
