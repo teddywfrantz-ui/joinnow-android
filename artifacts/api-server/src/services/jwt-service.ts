@@ -1,5 +1,6 @@
 
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'node:crypto';
 import type { User } from '@workspace/db';
 
 // JWTs must be signed with a private, server-only secret. SESSION_SECRET is
@@ -9,13 +10,14 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET or SESSION_SECRET must be configured');
 }
 const ACCESS_TOKEN_EXPIRY = '1h';  // Access tokens expire in 1 hour
-const REFRESH_TOKEN_EXPIRY = '30d'; // Refresh tokens expire in 30 days
+const REFRESH_TOKEN_EXPIRY = '14d'; // Refresh tokens are rotated and expire in 14 days
 
 // Token types
 export interface JwtPayload {
   userId: number;
   username: string;
   tokenType: 'access' | 'refresh';
+  jti?: string;
   iat?: number;
   exp?: number;
 }
@@ -26,7 +28,8 @@ export function generateAccessToken(user: Pick<User, 'id' | 'username'>): string
     { 
       userId: user.id, 
       username: user.username,
-      tokenType: 'access'
+      tokenType: 'access',
+      jti: randomUUID(),
     }, 
     JWT_SECRET, 
     { expiresIn: ACCESS_TOKEN_EXPIRY }
@@ -39,7 +42,8 @@ export function generateRefreshToken(user: Pick<User, 'id' | 'username'>): strin
     { 
       userId: user.id, 
       username: user.username,
-      tokenType: 'refresh'
+      tokenType: 'refresh',
+      jti: randomUUID(),
     }, 
     JWT_SECRET, 
     { expiresIn: REFRESH_TOKEN_EXPIRY }
