@@ -25,8 +25,6 @@ router.get("/meetups/:meetupId/participants-to-rate", async (req, res) => {
       return res.status(401).json({ error: "Not authenticated" });
     }
 
-    console.log(`Fetching participants to rate for meetup ${meetupId}, current user: ${currentUserId}`);
-
     // Get the meetup creator id first
     const [meetup] = await db
       .select({
@@ -36,8 +34,19 @@ router.get("/meetups/:meetupId/participants-to-rate", async (req, res) => {
       .where(eq(meetups.id, meetupId))
       .limit(1);
 
-    console.log('Meetup creator:', meetup?.creator_id);
-    console.log('Current user:', currentUserId);
+    if (!meetup) return res.status(404).json({ error: "Meetup not found" });
+
+    const [viewerParticipation] = await db
+      .select({ id: meetupParticipants.id })
+      .from(meetupParticipants)
+      .where(and(
+        eq(meetupParticipants.meetup_id, meetupId),
+        eq(meetupParticipants.user_id, currentUserId),
+      ))
+      .limit(1);
+    if (meetup.creator_id !== currentUserId && !viewerParticipation) {
+      return res.status(403).json({ error: "You did not participate in this Meet" });
+    }
 
     // Rules:
     // 1. Creator shouldn't see creator in ratings (exclude self)
@@ -69,7 +78,16 @@ router.get("/meetups/:meetupId/participants-to-rate", async (req, res) => {
         )
       );
 
-    console.log('Filtered participants:', participants);
+    if (meetup.creator_id !== currentUserId) {
+      const [creator] = await db
+        .select({ id: users.id, username: users.username, createdAt: meetups.createdAt })
+        .from(users)
+        .where(eq(users.id, meetup.creator_id!))
+        .limit(1);
+      if (creator && !participants.some((participant) => participant.id === creator.id)) {
+        participants.unshift(creator);
+      }
+    }
 
     return res.json(participants);
   } catch (error: unknown) {
@@ -91,6 +109,27 @@ router.post("/meetups/:meetupId/users/:userId/rate", async (req, res) => {
     const meetupId = parseInt(req.params.meetupId);
     const userId = parseInt(req.params.userId);
     const endorserId = req.session.userId;
+    if (!Number.isInteger(meetupId) || !Number.isInteger(userId) || userId === endorserId) {
+      return res.status(400).json({ error: "Invalid rating target" });
+    }
+
+    const [meetup] = await db
+      .select({ creatorId: meetups.creator_id })
+      .from(meetups)
+      .where(eq(meetups.id, meetupId))
+      .limit(1);
+    if (!meetup) return res.status(404).json({ error: "Meetup not found" });
+
+    const participantRows = await db
+      .select({ userId: meetupParticipants.user_id })
+      .from(meetupParticipants)
+      .where(eq(meetupParticipants.meetup_id, meetupId));
+    const participantIds = new Set(participantRows.map((row) => row.userId));
+    const canRate = meetup.creatorId === endorserId || participantIds.has(endorserId);
+    const targetParticipated = meetup.creatorId === userId || participantIds.has(userId);
+    if (!canRate || !targetParticipated) {
+      return res.status(403).json({ error: "Ratings are limited to Meet participants" });
+    }
 
     // Validate request body
     const ratingSchema = z.object({
@@ -138,14 +177,6 @@ router.post("/meetups/:meetupId/users/:userId/rate", async (req, res) => {
       .limit(1)
       .then((result) => result[0]);
 
-    console.log(`Processing endorsement for trait ${trait_name}:`, {
-      userId,
-      endorserId,
-      meetupId,
-      endorsement,
-      existingEndorsement: existingEndorsement || 'none'
-    });
-
     if (existingEndorsement) {
       // Update existing endorsement
       const [updatedEndorsement] = await db
@@ -156,19 +187,10 @@ router.post("/meetups/:meetupId/users/:userId/rate", async (req, res) => {
         .where(eq(userTraits.id, existingEndorsement.id))
         .returning();
 
-      console.log('Updated existing endorsement:', updatedEndorsement);
       return res.json(updatedEndorsement);
     }
 
     // Insert new endorsement
-    console.log('Inserting new endorsement with values:', {
-      userId,
-      traitId: trait.id,
-      endorserId,
-      meetupId,
-      endorsementCount: endorsement
-    });
-    
     const [newEndorsement] = await db
       .insert(userTraits)
       .values({
@@ -180,14 +202,12 @@ router.post("/meetups/:meetupId/users/:userId/rate", async (req, res) => {
       })
       .returning();
 
-    console.log('Created new endorsement:', newEndorsement);
     return res.json(newEndorsement);
   } catch (error: unknown) {
     console.error("Error submitting rating:", error);
 
     return res.status(500).json({
       error: "Failed to submit rating",
-      detail: error instanceof Error ? error.message : "Unknown error",
     });
   }
 });
