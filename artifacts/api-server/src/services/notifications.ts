@@ -99,7 +99,7 @@ export async function createNotification(
       );
     }
 
-    await sendPushNotification(userId, {
+    void sendPushNotification(userId, {
       title,
       message,
       link,
@@ -139,23 +139,31 @@ export async function sendPushNotification(
       .where(eq(pushTokens.user_id, userId));
     if (tokens.length === 0) return;
 
-    const response = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(
-        tokens.map(({ token }) => ({
-          to: token,
-          title: notification.title,
-          body: notification.message,
-          sound: "default",
-          channelId: "joinnow",
-          data: {
-            link: notification.link ?? "/notifications",
-            notificationId: notification.notificationId,
-          },
-        })),
-      ),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+    let response: Response;
+    try {
+      response = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify(
+          tokens.map(({ token }) => ({
+            to: token,
+            title: notification.title,
+            body: notification.message,
+            sound: "default",
+            channelId: "joinnow",
+            data: {
+              link: notification.link ?? "/notifications",
+              notificationId: notification.notificationId,
+            },
+          })),
+        ),
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) {
       throw new Error(`Expo push service returned ${response.status}`);
     }
