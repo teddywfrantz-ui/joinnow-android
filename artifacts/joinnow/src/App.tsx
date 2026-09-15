@@ -12,6 +12,7 @@ import EditProfilePage from "@/pages/edit-profile";
 import SettingsPage from "@/pages/settings-page";
 import LeaderboardPage from "@/pages/leaderboard-page";
 import TokenTestPage from "@/pages/token-test";
+import MessagesPage from "@/pages/messages-page";
 import { MainLayout } from "@/components/layout/main-layout";
 
 // Wrapper component for pages that need the main layout
@@ -26,6 +27,14 @@ function Router() {
       <Route path="/" component={() => <Redirect to="map" />} />
       <Route path="/map" component={Home} />
       <Route path="/active-meet" component={Home} />
+      <Route
+        path="/messages"
+        component={() => (
+          <WithMainLayout>
+            <MessagesPage />
+          </WithMainLayout>
+        )}
+      />
       <Route path="/friends" component={Home} />
       <Route path="/groups" component={Home} />
       <Route path="/profile" component={() => <WithMainLayout><ProfilePage key="profile-default" /></WithMainLayout>} />
@@ -53,7 +62,16 @@ function Router() {
       <Route path="/token-test" component={() => <WithMainLayout><TokenTestPage /></WithMainLayout>} />
       {/* Catch-all route - render home if path begins with defined tabs */}
       <Route path="/:catchAll+" component={(params) => {
-        const validPaths = ["map", "active-meet", "friends", "groups", "settings", "leaderboard", "leaderboards"];
+        const validPaths = [
+          "map",
+          "active-meet",
+          "friends",
+          "groups",
+          "settings",
+          "leaderboard",
+          "leaderboards",
+          "messages",
+        ];
         const path = params.params["catchAll+"] || "";
         if (validPaths.includes(path)) {
           return <Home />;
