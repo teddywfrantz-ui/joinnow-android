@@ -325,6 +325,7 @@ export function MeetupView({
           searchRadius={searchRadius}
           activeMeetupId={activeMeetupId}
           pendingRequestIds={pendingRequestIds}
+          currentUserId={currentUser?.id}
         />
       ) : (
         <MeetupListView
