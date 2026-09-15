@@ -6,3 +6,8 @@
 - [GitHub sync fallback](github-sync-fallback.md) — connector API and CLI auth can fail independently; preserve local commits and use the Git pane to sync.
 - [Binary connector uploads](binary-connector-uploads.md) — read binary files inside the impure upload call; durable shell output can silently truncate base64 payloads.
 - [Complete Profile button contrast](complete-profile-button-contrast.md) — keep the warning action label dark in both light and dark themes.
+- [Group admission invariants](group-admission-invariants.md) — one current group, competing-request cancellation meaning, and shared legacy/group admission locking.
+- [Conversation navigation](conversation-navigation.md) — use Messages as the shared hub; keep group and meetup screens as contextual entry points.
+- [Android push delivery](android-push-delivery.md) — register native Expo tokens through the authenticated same-origin WebView session; native changes require a new APK.
+- [Android build environment](android-build-environment.md) — standalone APK output needs a stable Android runner; Expo Launch does not provide APK or Play Store builds.
+- [Transaction response ordering](transaction-response-ordering.md) — commit database transactions before sending HTTP responses on concurrency-sensitive mutations.
