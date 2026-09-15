@@ -1,0 +1,100 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "l9Fm3h23jDHzJ7u8FLfw9"
+uri = "file://exports/joinnow-git-source.zip"
+type = "unspecified"
+title = "JoinNow Git Source"
+description = "Git-ready source package containing the JoinNow web app, API server, and Android Expo wrapper with the latest mobile responsive fixes. Dependencies, caches, build output, and environment files are excluded."
+logical_id = "fd4c8c88-742e-4409-b5bf-978065a210b0"
+content_hash = "sha256:27b78a6af9a1658694c1e1f88c8afd50159c8ebdea4be7354ae3f380a2227054"
+size = 1056479
+mtime_ms = 1789101403089
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:b95cdf5c-9b41-4586-b6de-208fba4bd568/fd4c8c88-742e-4409-b5bf-978065a210b0/498d86be-7c9a-476b-8edd-e0b38f0b70e8"
+storage_version_token = "1789101416896358"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "VwoazZ12wGTJhvCIqYeWo"
+uri = "file://exports/joinnow-android-only.zip"
+type = "unspecified"
+title = "JoinNow Android — Small Git Upload"
+description = "Standalone Android Expo source with only 24 files. Extract it and upload all files to a new Git repository in one batch; it is below the 100-file browser limit."
+logical_id = "86901bfc-b7df-4018-ba5f-e2a2bf0318ea"
+content_hash = "sha256:fd50cd2bbc0a32ae2d07dec1cfaf7648844141f9400d7bdbfbe1c67ab97d1335"
+size = 346796
+mtime_ms = 1789101568081
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:b95cdf5c-9b41-4586-b6de-208fba4bd568/86901bfc-b7df-4018-ba5f-e2a2bf0318ea/127e40f3-242a-49ac-ab7c-de40ac138973"
+storage_version_token = "1789101593434020"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "gvLgT6P0VrolJo8guWO5q"
+uri = "file://exports/joinnow-source-part-1.zip"
+type = "unspecified"
+title = "JoinNow Complete Source — Part 1 of 4"
+description = "74 files. Extract into the shared project folder, then upload this batch to the Git repository."
+logical_id = "a4260b4a-597f-412f-a188-196bb54eee58"
+content_hash = "sha256:195a52b39fe655438935aba7b7ba3b33317f65d1896cb30dc4aa990ec9c975d2"
+size = 429933
+mtime_ms = 1789101626071
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:b95cdf5c-9b41-4586-b6de-208fba4bd568/a4260b4a-597f-412f-a188-196bb54eee58/77a17e57-e393-4d9f-9ca7-b53573061879"
+storage_version_token = "1789101637672151"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "WSjr-bg7YxUZycAErD7xc"
+uri = "file://exports/joinnow-source-part-2.zip"
+type = "unspecified"
+title = "JoinNow Complete Source — Part 2 of 4"
+description = "74 files. Extract into the same shared project folder, then upload this batch to the same Git repository."
+logical_id = "bda44436-6ba1-4bfa-8c30-7096ffaf6c54"
+content_hash = "sha256:2a2428a792b18ee9dec28239746c560651e97027841448fef4be6acd7f6aed41"
+size = 163865
+mtime_ms = 1789101626099
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:b95cdf5c-9b41-4586-b6de-208fba4bd568/bda44436-6ba1-4bfa-8c30-7096ffaf6c54/7d9e6433-2eaa-49dd-a81d-375a2fef4099"
+storage_version_token = "1789101638590479"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "z_RmFphu_8prLM_MWMaSl"
+uri = "file://exports/joinnow-source-part-3.zip"
+type = "unspecified"
+title = "JoinNow Complete Source — Part 3 of 4"
+description = "74 files. Extract into the same shared project folder, then upload this batch to the same Git repository."
+logical_id = "00dcdcdf-9f58-47d2-8531-d3dbf5daf094"
+content_hash = "sha256:ac4f480f994e1f1b0c033b07e296d8d92b26515747f74ba7c632bb2ab4ad9cab"
+size = 233669
+mtime_ms = 1789101626131
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:b95cdf5c-9b41-4586-b6de-208fba4bd568/00dcdcdf-9f58-47d2-8531-d3dbf5daf094/9feea70b-4b10-4dfe-a483-2e958872522b"
+storage_version_token = "1789101639174659"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "DMjLa0kdFHkTYXsWt6OkO"
+uri = "file://exports/joinnow-source-part-4.zip"
+type = "unspecified"
+title = "JoinNow Complete Source — Part 4 of 4"
+description = "74 files. Extract into the same shared project folder, then upload this final batch to the same Git repository."
+logical_id = "d36cd49f-ff87-4cfb-b137-61bb0048e5f4"
+content_hash = "sha256:24ffc53889ef2bd61687ce049bc967cfee813e231b9fb707808d3d7b16524eea"
+size = 216302
+mtime_ms = 1789101626167
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:b95cdf5c-9b41-4586-b6de-208fba4bd568/d36cd49f-ff87-4cfb-b137-61bb0048e5f4/54e6c0a6-7dd5-4ef4-9560-86330b82cf45"
+storage_version_token = "1789101639937431"
+content_type = "application/octet-stream"
+
+[[outputs]]
+id = "4cS6ZMKB9ZOUvvvduGaQD"
+uri = "file://downloads/build-android-apk.yml"
+type = "unspecified"
+title = "Corrected Android APK workflow"
+description = "Replace the existing .github/workflows/build-android-apk.yml with this corrected version, commit it, and rerun the workflow."
+logical_id = "31c30230-edc8-46e5-a877-f0e81daa53fc"
+content_hash = "sha256:6b57c1288e08aa9fc5add3123669f755e0f4a69415b6c0d0f9fc3d543f40dc13"
+size = 2401
+mtime_ms = 1789103525938
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:b95cdf5c-9b41-4586-b6de-208fba4bd568/31c30230-edc8-46e5-a877-f0e81daa53fc/582c801c-a774-47a9-bf6d-aa28a0a19b80"
+storage_version_token = "1789103534524724"
+content_type = "application/octet-stream"
