@@ -27,6 +27,30 @@ export function useLocationSharing(meetupId: number, userId: number | null, user
   const retryCount = useRef(0);
 
   const startWatchingLocation = async () => {
+    if (!userId) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const settingsResponse = await fetch(`/api/users/${userId}/settings`, {
+        credentials: "include",
+      });
+      if (!settingsResponse.ok) {
+        throw new Error("Unable to verify location privacy setting");
+      }
+      const settings = await settingsResponse.json();
+      if (settings?.privacy?.allowLocationSharing === false) {
+        setIsLoading(false);
+        setError(null);
+        return;
+      }
+    } catch {
+      setIsLoading(false);
+      setError("Location sharing is unavailable until your privacy settings can be verified.");
+      return;
+    }
+
     if (!('geolocation' in navigator)) {
       setError('Your browser does not support location sharing');
       setIsLoading(false);
