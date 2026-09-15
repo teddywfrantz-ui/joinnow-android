@@ -100,15 +100,12 @@ async function getValidAccessToken(): Promise<string> {
   try {
     let tokens = JSON.parse(localStorage.getItem('jwt_tokens') || 'null');
     if (!tokens?.accessToken) {
-      const sessionTokenResponse = await fetch('/api/generate-test-token', {
+      const sessionTokenResponse = await fetch('/api/session-token', {
         credentials: 'include',
       });
       if (!sessionTokenResponse.ok) return '';
       const sessionTokens = await sessionTokenResponse.json();
-      tokens = {
-        accessToken: sessionTokens.accessToken,
-        refreshToken: sessionTokens.refreshToken,
-      };
+      tokens = { accessToken: sessionTokens.accessToken };
       localStorage.setItem('jwt_tokens', JSON.stringify(tokens));
     }
 
