@@ -210,8 +210,10 @@ export function registerRoutes(app: Express) {
   app.use('/api', ratingsRouter);
   app.use('/api', settingsRouter);
   app.use('/api/leaderboards', leaderboardsRouter);
-  app.use('/api', authTestRouter);
-  app.use('/api', tokenTestRouter);
+  if (process.env.NODE_ENV !== "production" && process.env.ENABLE_TEST_ROUTES === "true") {
+    app.use('/api', authTestRouter);
+    app.use('/api', tokenTestRouter);
+  }
 
   // User search endpoint is handled in server/routes/friends.ts
 
@@ -859,7 +861,7 @@ export function registerRoutes(app: Express) {
     console.log(`User ${userId} attempting to join meetup ${meetupId}`);
 
     try {
-      return await db.transaction(async (tx) => {
+      const newRequest = await db.transaction(async (tx) => {
       await lockUsersAndMeetup(tx, [userId], meetupId);
       const lockedGroup = await getLockedGroupForUser(userId, tx);
       if (lockedGroup) {
@@ -1029,15 +1031,16 @@ export function registerRoutes(app: Express) {
           relatedId: newRequest.id,
           link: '/active-meet'
         });
-      await sendPushNotification(meetup.creator_id, {
+      void sendPushNotification(meetup.creator_id, {
         title: "New Join Request",
         message: `${requester.username} has requested to join your meet "${meetup.title}"`,
         link: "/active-meet",
       });
 
       console.log(`Successfully created join request ${newRequest.id} for meetup ${meetupId}`);
-      res.json(newRequest);
+      return newRequest;
       });
+      return res.json(newRequest);
     } catch (error) {
       console.error('Failed to create join request:', error);
       res.status(500).json({ error: "Failed to create join request" });
@@ -1468,7 +1471,7 @@ export function registerRoutes(app: Express) {
               message: `Your request to join ${lockedMeetup.title} was rejected because you are already in another meet.`,
               type: 'warning',
             });
-            await sendPushNotification(request.user_id, {
+            void sendPushNotification(request.user_id, {
               title: "Join Request Rejected",
               message: `Your request to join ${lockedMeetup.title} was rejected because you are already in another meet.`,
             });
@@ -1504,7 +1507,7 @@ export function registerRoutes(app: Express) {
             type: 'success',
             link: '/active-meet',
           });
-          await sendPushNotification(request.user_id, {
+            void sendPushNotification(request.user_id, {
             title: "Join Request Accepted",
             message: `Your request to join ${lockedMeetup.title} has been accepted!`,
             link: "/active-meet",
@@ -1539,7 +1542,7 @@ export function registerRoutes(app: Express) {
             message: `Your request to join ${meetup.title} was rejected.`,
             type: 'warning'
           });
-        await sendPushNotification(request.user_id, {
+            void sendPushNotification(request.user_id, {
           title: "Join Request Rejected",
           message: `Your request to join ${meetup.title} was rejected.`,
         });
@@ -1769,7 +1772,7 @@ export function registerRoutes(app: Express) {
            ${'info'},
            ${new Date()})
         `);
-        await sendPushNotification(participant.user_id, {
+        void sendPushNotification(participant.user_id, {
           title: "Meetup Extended",
           message: `The meetup "${meetup.title}" has been extended by ${hours} hour${hours > 1 ? 's' : ''}`,
         });
@@ -1904,7 +1907,7 @@ console.log(`[Complete Meetup ${reqId}] ⏳ Updating meetup expiry time to now..
           type: 'info',
           link: '/rate/' + meetupId
         });
-        await sendPushNotification(participant.user_id, {
+        void sendPushNotification(participant.user_id, {
           title: "Meetup Ended",
           message: `The meetup "${meetup.title}" has been ended by the creator.`,
           link: `/rate/${meetupId}`,
@@ -1973,7 +1976,7 @@ console.log(`[Complete Meetup ${reqId}] ⏳ Updating meetup expiry time to now..
           message: `You have been removed from the meetup "${meetup.title}"`,
           type: 'warning'
         });
-      await sendPushNotification(participantId, {
+      void sendPushNotification(participantId, {
         title: "Removed from Meetup",
         message: `You have been removed from the meetup "${meetup.title}"`,
       });
@@ -2307,8 +2310,9 @@ if (existingHistory) {
         .where(eq(users.id, userId))
         .returning();
 
-      console.log(`Successfully updated profile for user ${userId}`);
-      res.json(updatedUser);
+      if (!updatedUser) return res.status(404).json({ error: "User not found" });
+      const { password: _password, ...safeUser } = updatedUser;
+      res.json(safeUser);
     } catch (error) {
       console.error('Failed to update user profile:', error);
       res.status(500).json({ error: "Failed to update user profile" });
@@ -2518,16 +2522,18 @@ if (existingHistory) {
 
   // Get meet history for a user
 app.get("/api/users/:userId/meet-history", async (req, res) => {
-  console.log("🛠️ Preparing to fetch meetHistory...");
-  
-  // Temporarily disable authentication for testing
-  // if (!isAuthenticated(req)) {
-  //   return res.status(401).json({ error: "Not authenticated" });
-  // }
+  if (!isAuthenticated(req)) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
 
   try {
     const userId = parseInt(req.params.userId);
-    console.log(`Fetching meet history for user ${userId}`);
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+    if (userId !== req.session.userId) {
+      return res.status(403).json({ error: "Cannot view another user's private meet history" });
+    }
 
     // Get raw meet history count first
     const historyCount = await db
@@ -2535,13 +2541,6 @@ app.get("/api/users/:userId/meet-history", async (req, res) => {
       .from(meetHistory)
       .where(eq(meetHistory.user_id, userId));
 
-    console.log("✅ Raw meet history count:", historyCount[0]?.count ?? 0);
-
-    console.log("🔄 Executing full meet history query...");
-    
-    // First, log database structure for debugging
-    console.log("🔍 Debugging database column names:");
-    
     // Use raw SQL query with snake_case column names used in the DB
     const meetHistoryEntries = await db.execute(sql`
       SELECT 
@@ -2568,37 +2567,32 @@ app.get("/api/users/:userId/meet-history", async (req, res) => {
     // Extract the rows from the raw query result
     const meetHistoryRows = meetHistoryEntries.rows;
 
-    console.log(`✅ Found ${meetHistoryRows ? meetHistoryRows.length : 0} meet history entries for user ${userId}`);
-    // Log the entire response we're sending back for debugging
-    console.log("🔍 Meet history data:", JSON.stringify(meetHistoryRows || [], null, 2));
-
-    // Return with HTTP 200 status to ensure the client knows the request succeeded
     return res.status(200).json(meetHistoryRows);
   } catch (error) {
-    console.error("❌ Failed to fetch meet history:", error);
-    return res.status(500).json({ error: "Failed to fetch meet history", details: String(error) });
+    console.error("Failed to fetch meet history:", error instanceof Error ? error.message : "unknown error");
+    return res.status(500).json({ error: "Failed to fetch meet history" });
   }
 });
 
 // Get user stats (friend count, meets attended, trait count)
 app.get("/api/users/:userId/stats", async (req, res) => {
-  console.log("🛠️ Preparing to fetch user stats...");
-  
+  if (!isAuthenticated(req)) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
   try {
     const userId = parseInt(req.params.userId);
-    console.log(`Fetching stats for user ${userId}`);
-
     if (isNaN(userId)) {
       return res.status(400).json({ error: "Invalid user ID" });
+    }
+    if (userId !== req.session.userId) {
+      return res.status(403).json({ error: "Cannot view another user's private stats" });
     }
 
     // Get stats using the getUserStats service
     const stats = await getUserStats(userId);
-    console.log("✅ User stats:", stats);
-
     res.json(stats);
   } catch (error) {
-    console.error("❌ Failed to fetch user stats:", error);
+    console.error("Failed to fetch user stats:", error instanceof Error ? error.message : "unknown error");
     res.status(500).json({ error: "Failed to fetch user stats" });
   }
 });
@@ -2612,8 +2606,18 @@ app.post("/api/users/profile-picture", async (req, res) => {
   const userId = req.session.userId;
   const { profilePicture } = req.body;
 
-  if (!profilePicture) {
+  if (
+    typeof profilePicture !== "string" ||
+    !/^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/]+=*$/.test(profilePicture) ||
+    profilePicture.length > 7 * 1024 * 1024
+  ) {
     return res.status(400).json({ error: "Profile picture data is required" });
+  }
+
+  const encodedImage = profilePicture.slice(profilePicture.indexOf(",") + 1);
+  const imageBytes = Math.floor((encodedImage.length * 3) / 4) - (encodedImage.endsWith("==") ? 2 : encodedImage.endsWith("=") ? 1 : 0);
+  if (imageBytes > 5 * 1024 * 1024) {
+    return res.status(413).json({ error: "Profile picture must be 5 MB or smaller" });
   }
 
   try {
