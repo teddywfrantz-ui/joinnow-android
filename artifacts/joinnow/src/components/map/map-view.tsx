@@ -11,6 +11,20 @@ import { GOOGLE_MAPS_CONFIG } from '@/utils/google-maps';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { UserProfileModal } from "@/components/users/user-profile-modal";
+import { GroupMembersDialog } from "@/components/groups/group-members-dialog";
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[character] ?? character;
+  });
+}
 
 // Define a consistent location type
 export interface UserLocation {
@@ -27,6 +41,7 @@ interface MapViewProps {
   searchRadius: number; 
   activeMeetupId?: number;
   pendingRequestIds?: number[];
+  currentUserId?: number;
 }
 
 // Function to calculate distance between two coordinates in miles
@@ -190,7 +205,8 @@ export function MapView({
   userLocation,
   searchRadius,
   activeMeetupId,
-  pendingRequestIds = []
+  pendingRequestIds = [],
+  currentUserId,
 }: MapViewProps) {
   // State for user profile modal
   const [map, setMap] = useState<google.maps.Map | null>(null);
@@ -199,11 +215,42 @@ export function MapView({
   const [mapLoaded, setMapLoaded] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+  const [selectedGroupName, setSelectedGroupName] = useState<string | null>(null);
   const markersRef = useRef<Map<number, google.maps.Marker>>(new Map());
   const infoWindowsRef = useRef<Map<number, google.maps.InfoWindow>>(new Map());
   const queryClient = useQueryClient(); 
   const currentZipCodeRef = useRef(zipCode);
   const [locationSelectionMade, setLocationSelectionMade] = useState(false); 
+
+  const bindInfoWindowActions = useCallback((content: HTMLElement, meetup: Meetup) => {
+    const creatorButton = content.querySelector<HTMLButtonElement>(
+      `#view-creator-${meetup.id}`,
+    );
+    creatorButton?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedUserId(meetup.creator_id);
+      setIsProfileModalOpen(true);
+    });
+
+    const groupButton = content.querySelector<HTMLButtonElement>(
+      `#view-group-${meetup.id}`,
+    );
+    if (groupButton && meetup.group_id) {
+      groupButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setSelectedGroupId(meetup.group_id ?? null);
+        setSelectedGroupName(
+          meetup.creator_group_name ||
+            meetup.creator_displayName ||
+            meetup.creator_username ||
+            "Group",
+        );
+      });
+    }
+  }, []);
 
   const { isLoaded } = useJsApiLoader(GOOGLE_MAPS_CONFIG);
 
@@ -430,26 +477,41 @@ export function MapView({
         // Ensure the InfoWindow content is updated
         const infoWindow = infoWindowsRef.current.get(meetupId);
         if (infoWindow) {
+          const canViewExactLocation =
+            meetup.creator_id === currentUserId ||
+            activeMeetupId === meetup.id;
           const content = document.createElement('div');
           content.innerHTML = `
             <div class="info-window">
-              <h3 class="text-lg font-semibold">${meetup.title}</h3>
-              <p class="text-sm">${meetup.theme} · ${meetup.participantCount || 0}/${meetup.maxParticipants || 0} participants</p>
+              <h3 class="text-lg font-semibold">${escapeHtml(meetup.title)}</h3>
+              <p class="text-sm">${escapeHtml(meetup.theme)} · ${escapeHtml(meetup.participantCount || 0)}/${escapeHtml(meetup.maxParticipants || 0)} participants</p>
               ${hasPendingRequest ? '<p class="text-blue-500 font-medium">Request Pending</p>' : ''}
-              <p class="text-xs mt-1">${meetup.exactLocation || ''}</p>
-              <p class="text-xs font-medium mt-1">Created by: ${meetup.creator_displayName || meetup.creator_username}</p>
-              <div class="mt-2">
-                <button id="view-creator-${meetup.id}" class="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
-                  View Creator Profile
-                </button>
-              </div>
+              ${canViewExactLocation && meetup.exactLocation ? `<p class="text-xs mt-1">${escapeHtml(meetup.exactLocation)}</p>` : ''}
+               <p class="text-xs font-medium mt-1">Created by: ${meetup.group_id ? `<button id="view-group-${escapeHtml(meetup.id)}" class="font-medium text-blue-600 hover:underline">${escapeHtml(meetup.creator_group_name || meetup.creator_displayName || meetup.creator_username || 'Group')}</button>` : escapeHtml(meetup.creator_displayName || meetup.creator_username || 'Unknown')}</p>
+               ${meetup.group_id ? `<div class="mt-2">
+                 <span class="text-xs text-muted-foreground">View the group members above</span>
+               </div>` : `<div class="mt-2">
+                 <button id="view-creator-${escapeHtml(meetup.id)}" class="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                   View Creator Profile
+                 </button>
+               </div>`}
             </div>
           `;
           infoWindow.setContent(content);
+          bindInfoWindowActions(content, meetup);
         }
       }
     });
-  }, [pendingRequestIds, map, isLoaded, mapLoaded, meetups, activeMeetupId]);
+  }, [
+    pendingRequestIds,
+    map,
+    isLoaded,
+    mapLoaded,
+    meetups,
+    activeMeetupId,
+    currentUserId,
+    bindInfoWindowActions,
+  ]);
 
   useEffect(() => {
     if (!map || !isLoaded) return;
@@ -554,21 +616,26 @@ export function MapView({
         
         // Generate content for the InfoWindow
         const content = document.createElement('div');
+        const canViewExactLocation =
+          meetup.creator_id === currentUserId || activeMeetupId === meetup.id;
         content.innerHTML = `
           <div class="info-window">
-            <h3 class="text-lg font-semibold">${meetup.title}</h3>
-            <p class="text-sm">${meetup.theme} · ${meetup.participantCount || 0}/${meetup.maxParticipants || 0} participants</p>
+            <h3 class="text-lg font-semibold">${escapeHtml(meetup.title)}</h3>
+            <p class="text-sm">${escapeHtml(meetup.theme)} · ${escapeHtml(meetup.participantCount || 0)}/${escapeHtml(meetup.maxParticipants || 0)} participants</p>
             ${hasPendingRequest ? '<p class="text-blue-500 font-medium">Request Pending</p>' : ''}
-            <p class="text-xs mt-1">${meetup.exactLocation || ''}</p>
-            <p class="text-xs font-medium mt-1">Created by: ${meetup.creator_displayName || meetup.creator_username}</p>
-            <div class="mt-2">
-              <button id="view-creator-${meetup.id}" class="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
-                View Creator Profile
-              </button>
-            </div>
+            ${canViewExactLocation && meetup.exactLocation ? `<p class="text-xs mt-1">${escapeHtml(meetup.exactLocation)}</p>` : ''}
+             <p class="text-xs font-medium mt-1">Created by: ${meetup.group_id ? `<button id="view-group-${escapeHtml(meetup.id)}" class="font-medium text-blue-600 hover:underline">${escapeHtml(meetup.creator_group_name || meetup.creator_displayName || meetup.creator_username || 'Group')}</button>` : escapeHtml(meetup.creator_displayName || meetup.creator_username || 'Unknown')}</p>
+             ${meetup.group_id ? `<div class="mt-2">
+               <span class="text-xs text-muted-foreground">View the group members above</span>
+             </div>` : `<div class="mt-2">
+               <button id="view-creator-${escapeHtml(meetup.id)}" class="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                 View Creator Profile
+               </button>
+             </div>`}
           </div>
         `;
         infoWindow.setContent(content);
+        bindInfoWindowActions(content, meetup);
         
         // Store both the marker and infoWindow in refs
         markersRef.current.set(meetup.id, newMarker);
@@ -597,41 +664,25 @@ export function MapView({
       }
     });
 
-
-    // Add event listener for profile view buttons
-    const addProfileButtonListeners = () => {
-      // Need a small delay for the DOM to be fully updated
-      setTimeout(() => {
-        meetups.forEach(meetup => {
-          const creatorButton = document.getElementById(`view-creator-${meetup.id}`);
-          if (creatorButton) {
-            // Remove any existing event listeners
-            creatorButton.replaceWith(creatorButton.cloneNode(true));
-            
-            // Add new event listener
-            const newButton = document.getElementById(`view-creator-${meetup.id}`);
-            if (newButton) {
-              newButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log(`Opening profile for creator of meetup ${meetup.id}`);
-                setSelectedUserId(meetup.creator_id);
-                setIsProfileModalOpen(true);
-              });
-            }
-          }
-        });
-      }, 100);
-    };
-    
-    // Call the profile button event listener setup
-    addProfileButtonListeners();
-
     // Only clear markers when component unmounts
     return () => {
       clearAllMarkers();
     };
-  }, [map, meetups, isLoaded, searchRadius, circleCenter, activeMeetupId, pendingRequestIds, onMeetupSelect, clearAllMarkers, userLocation, mapLoaded]);
+  }, [
+    map,
+    meetups,
+    isLoaded,
+    searchRadius,
+    circleCenter,
+    activeMeetupId,
+    currentUserId,
+    pendingRequestIds,
+    onMeetupSelect,
+    clearAllMarkers,
+    userLocation,
+    mapLoaded,
+    bindInfoWindowActions,
+  ]);
 
   // We need to define hooks at the top level, not inside conditionals
   const [showMapLoadingError, setShowMapLoadingError] = useState(false);
@@ -845,6 +896,17 @@ export function MapView({
         userId={selectedUserId}
         open={isProfileModalOpen}
         onOpenChange={setIsProfileModalOpen}
+      />
+      <GroupMembersDialog
+        groupId={selectedGroupId}
+        groupName={selectedGroupName}
+        open={selectedGroupId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedGroupId(null);
+            setSelectedGroupName(null);
+          }
+        }}
       />
     </div>
   );
