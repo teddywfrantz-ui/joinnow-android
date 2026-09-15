@@ -31,6 +31,8 @@ interface WsClient extends WebSocket {
   isAlive?: boolean;
   messageQueue?: WsMessage[];
   authenticated?: boolean;
+  messageWindowStartedAt?: number;
+  messageCount?: number;
 }
 
 export function setupWebSocket(server: Server) {
@@ -74,6 +76,8 @@ export function setupWebSocket(server: Server) {
     ws.messageQueue = [];
     ws.userId = null;
     ws.authenticated = false;
+    ws.messageWindowStartedAt = Date.now();
+    ws.messageCount = 0;
 
     ws.on('pong', () => {
       ws.isAlive = true;
@@ -81,7 +85,22 @@ export function setupWebSocket(server: Server) {
 
     ws.on('message', async (data) => {
       try {
-        const message = JSON.parse(data.toString()) as WsMessage;
+        const rawMessage = data.toString();
+        if (Buffer.byteLength(rawMessage, "utf8") > 64 * 1024) {
+          ws.close(1009, "Message too large");
+          return;
+        }
+        const now = Date.now();
+        if (!ws.messageWindowStartedAt || now - ws.messageWindowStartedAt >= 60_000) {
+          ws.messageWindowStartedAt = now;
+          ws.messageCount = 0;
+        }
+        ws.messageCount = (ws.messageCount ?? 0) + 1;
+        if (ws.messageCount > 180) {
+          ws.close(1008, "Rate limit exceeded");
+          return;
+        }
+        const message = JSON.parse(rawMessage) as WsMessage;
         console.log('Received WebSocket message:', { type: message.type, meetupId: message.meetupId });
 
         if (message.type === 'authenticate') {
@@ -106,6 +125,11 @@ export function setupWebSocket(server: Server) {
           }
           userSockets.add(ws);
           ws.send(JSON.stringify({ type: 'authenticated' }));
+          return;
+        }
+
+        if (!ws.authenticated || ws.userId == null) {
+          ws.send(JSON.stringify({ type: 'error', error: 'Authentication required' }));
           return;
         }
 
@@ -220,6 +244,20 @@ export function setupWebSocket(server: Server) {
               }
             }
             break;
+          case 'location_update': {
+            const [user] = await db
+              .select({ settings: users.settings })
+              .from(users)
+              .where(eq(users.id, ws.userId))
+              .limit(1);
+            const privacy = (user?.settings as { privacy?: { allowLocationSharing?: boolean } } | null)?.privacy;
+            if (privacy?.allowLocationSharing === false) {
+              ws.send(JSON.stringify({ type: 'error', error: 'Location sharing is disabled in your privacy settings' }));
+              break;
+            }
+            await broadcastMeetupUpdate(message, meetupClients);
+            break;
+          }
           case 'typing':
           case 'stop_typing':
             handleTypingStatus(message, meetupClients, typingUsers);
@@ -254,8 +292,10 @@ export function setupWebSocket(server: Server) {
                 console.log(`🔍 [ReactionHandler ${requestId}] Looking up message ID: ${message.messageId}`);
                 const messageResult = await db.execute(sql`
                   SELECT * FROM messages 
-                  WHERE message_id = ${message.messageId} 
+                  WHERE meetup_id = ${message.meetupId}
+                  AND (message_id = ${message.messageId}
                   OR id = ${parseInt(message.messageId, 10)}
+                  )
                 `);
 
                 if (messageResult.rows?.length > 0) {
@@ -378,7 +418,6 @@ export function setupWebSocket(server: Server) {
     });
   });
 
-  return wss;
 }
 
 async function handleChatMessage(
@@ -641,6 +680,7 @@ async function broadcastRequestUpdate(
       client.send(JSON.stringify(outboundMessage));
     }
   });
+
 }
 
 async function broadcastMeetupUpdate(message: WsMessage, meetupClients: Map<number, Set<WsClient>>) {
