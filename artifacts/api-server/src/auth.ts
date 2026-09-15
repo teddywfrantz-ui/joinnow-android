@@ -2,23 +2,21 @@ import { type Express } from "express";
 import session from "express-session";
 import pgSession from "connect-pg-simple";
 import pg from "pg";
+import crypto from "node:crypto";
 const { Pool } = pg;
 import { db, users, friends } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { z } from "zod/v4";
-import { 
-  generateAccessToken, 
+import {
+  generateAccessToken,
   generateRefreshToken,
-  verifyToken
+  verifyToken,
 } from "./services/jwt-service";
-import { 
-  optionalJwtAuth, 
-  requireJwtAuth 
-} from "./services/auth-middleware";
+import { optionalJwtAuth, requireJwtAuth } from "./services/auth-middleware";
 
 // Extend the session interface to include our custom properties
-declare module 'express-session' {
+declare module "express-session" {
   interface SessionData {
     userId: number;
   }
@@ -26,14 +24,32 @@ declare module 'express-session' {
 
 // Enhanced validation schema for registration
 const registerSchema = z.object({
-  username: z.string()
+  username: z
+    .string()
     .min(3, "Username must be at least 3 characters")
     .max(30, "Username must be at most 30 characters")
-    .regex(/^[a-zA-Z0-9_-]+$/, "Username can only contain letters, numbers, underscores, and hyphens"),
-  password: z.string()
+    .regex(
+      /^[a-zA-Z0-9_-]+$/,
+      "Username can only contain letters, numbers, underscores, and hyphens",
+    ),
+  password: z
+    .string()
     .min(6, "Password must be at least 6 characters")
     .max(100, "Password must be at most 100 characters"),
 });
+
+function hashRefreshToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+async function storeRefreshToken(userId: number, token: string) {
+  const payload = verifyToken(token);
+  if (!payload?.exp) throw new Error("Generated refresh token has no expiry");
+  await db.execute(sql`
+    INSERT INTO auth_refresh_tokens (token_hash, user_id, expires_at)
+    VALUES (${hashRefreshToken(token)}, ${userId}, to_timestamp(${payload.exp}))
+  `);
+}
 
 export function setupAuth(app: Express) {
   const sessionSecret = process.env.SESSION_SECRET;
@@ -42,18 +58,18 @@ export function setupAuth(app: Express) {
   }
   // PostgreSQL session store setup
   const PgStore = pgSession(session as any);
-  
+
   // Create PostgreSQL connection pool
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL
+    connectionString: process.env.DATABASE_URL,
   });
-  
-  console.log("✅ Connected to PostgreSQL database for session storage");
+  // Expose the session pool for controlled shutdown by integration tests and
+  // embedders; normal application code does not need to access it.
+  app.locals.sessionPool = pool;
 
-  // Create the sessions table if it doesn't exist
-  (async () => {
+  app.locals.sessionReady = (async () => {
+    const client = await pool.connect();
     try {
-      const client = await pool.connect();
       await client.query(`
         CREATE TABLE IF NOT EXISTS "session" (
           "sid" varchar NOT NULL COLLATE "default",
@@ -62,10 +78,8 @@ export function setupAuth(app: Express) {
           CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
         )
       `);
-      console.log("✅ PostgreSQL session table created or verified");
+    } finally {
       client.release();
-    } catch (err) {
-      console.error("❌ Error creating PostgreSQL session table:", err);
     }
   })();
 
@@ -75,39 +89,59 @@ export function setupAuth(app: Express) {
       secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
-      proxy: true,
+       proxy: process.env.NODE_ENV === "production",
       cookie: {
-        secure: false,
-        sameSite: 'lax',
+         secure: process.env.NODE_ENV === "production" || process.env.COOKIE_SECURE === "true",
+        sameSite: "lax",
         maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
         httpOnly: true,
-        path: '/'
+        path: "/",
       },
       store: new PgStore({
         pool,
-        tableName: 'session', // Default is "session"
-        createTableIfMissing: true
-      })
-    })
+        tableName: "session", // Default is "session"
+        createTableIfMissing: true,
+      }),
+    }),
   );
 
   // Apply optional JWT auth middleware to all routes
   app.use(optionalJwtAuth);
+  app.use(async (_req, _res, next) => {
+    try {
+      await app.locals.sessionReady;
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Issue a short-lived access token for the authenticated WebSocket bridge.
+  // Unlike the old test route, this never returns a refresh token.
+  app.get("/api/session-token", (req, res) => {
+    if (!req.session || typeof req.session.userId !== "number") {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+    db.select({ id: users.id, username: users.username })
+      .from(users)
+      .where(eq(users.id, req.session.userId))
+      .limit(1)
+      .then(([user]) => {
+        if (!user) return res.status(401).json({ error: "Authentication required" });
+        res.json({ accessToken: generateAccessToken(user) });
+      })
+      .catch(() => res.status(500).json({ error: "Unable to create session token" }));
+  });
 
   // Enhanced register endpoint with better logging and error handling
   app.post("/api/register", async (req, res) => {
     try {
-      console.log("Registration attempt:", { 
-        username: req.body.username
-      });
-
       // Validate input
       const validatedInput = registerSchema.safeParse(req.body);
       if (!validatedInput.success) {
-        console.log("Registration validation failed:", validatedInput.error.errors);
-        return res.status(400).json({ 
-          error: "Validation failed", 
-          details: validatedInput.error.errors 
+        return res.status(400).json({
+          error: "Validation failed",
+          details: validatedInput.error.errors,
         });
       }
 
@@ -121,33 +155,23 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (existingUser) {
-        console.log("Registration failed: Username exists:", username);
         return res.status(400).json({ error: "Username already exists" });
       }
 
       // Hash password and create user
       try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        console.log("Password hashed successfully");
-
         const [newUser] = await db
           .insert(users)
           .values({
             username,
             password: hashedPassword,
             displayName: username, // Set display name to username initially
-            bio: '', // Empty bio by default
+            bio: "", // Empty bio by default
             meetsAttendedCount: 0,
-            createdAt: new Date()
+            createdAt: new Date(),
           })
           .returning();
-
-        console.log("User created successfully:", { 
-          id: newUser.id, 
-          username: newUser.username,
-          displayName: newUser.displayName,
-          createdAt: newUser.createdAt
-        });
 
         // Set session and wait for it to be saved
         req.session.userId = newUser.id;
@@ -161,6 +185,7 @@ export function setupAuth(app: Express) {
         // Generate JWT tokens
         const accessToken = generateAccessToken(newUser);
         const refreshToken = generateRefreshToken(newUser);
+         await storeRefreshToken(newUser.id, refreshToken);
 
         // Return user data without password and with empty friends array
         // New users don't have friends yet, but we include an empty array for consistency
@@ -170,19 +195,19 @@ export function setupAuth(app: Express) {
           friends: [],
           tokens: {
             accessToken,
-            refreshToken
-          }
+            refreshToken,
+          },
         };
-        console.log("New user created with empty friends array and JWT tokens");
         res.status(201).json(userData);
       } catch (dbError) {
         console.error("Database error during user creation:", dbError);
         throw new Error("Failed to create user account");
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      res.status(500).json({ 
-        error: error instanceof Error ? error.message : "Error during registration" 
+      console.error("Registration error:", error);
+      res.status(500).json({
+        error:
+          error instanceof Error ? error.message : "Error during registration",
       });
     }
   });
@@ -192,9 +217,9 @@ export function setupAuth(app: Express) {
     try {
       const validatedInput = registerSchema.safeParse(req.body);
       if (!validatedInput.success) {
-        return res.status(400).json({ 
-          error: "Validation failed", 
-          details: validatedInput.error.errors 
+        return res.status(400).json({
+          error: "Validation failed",
+          details: validatedInput.error.errors,
         });
       }
 
@@ -208,15 +233,20 @@ export function setupAuth(app: Express) {
         .limit(1);
 
       if (!user) {
-        console.log("Login failed: User not found:", username);
-        return res.status(400).json({ error: "No account found with that username. Please check your spelling or create a new account." });
+        return res
+          .status(400)
+          .json({
+            error:
+              "No account found with that username. Please check your spelling or create a new account.",
+          });
       }
 
       // Check password
       const validPassword = await bcrypt.compare(password, user.password);
       if (!validPassword) {
-        console.log("Login failed: Invalid password for user:", username);
-        return res.status(400).json({ error: "Incorrect password. Please try again." });
+        return res
+          .status(400)
+          .json({ error: "Incorrect password. Please try again." });
       }
 
       // Set session and wait for it to be saved
@@ -231,6 +261,7 @@ export function setupAuth(app: Express) {
       // Generate JWT tokens
       const accessToken = generateAccessToken(user);
       const refreshToken = generateRefreshToken(user);
+       await storeRefreshToken(user.id, refreshToken);
 
       // Get user friends for login response too
       // First get friends where the current user is the user_id
@@ -239,24 +270,24 @@ export function setupAuth(app: Express) {
           id: users.id,
           username: users.username,
           displayName: users.displayName,
-          createdAt: users.createdAt
+          createdAt: users.createdAt,
         })
         .from(friends)
         .innerJoin(users, eq(friends.friend_id, users.id))
         .where(eq(friends.user_id, user.id));
-      
+
       // Then get friends where the current user is the friend_id
       const friends2 = await db
         .select({
           id: users.id,
           username: users.username,
           displayName: users.displayName,
-          createdAt: users.createdAt
+          createdAt: users.createdAt,
         })
         .from(friends)
         .innerJoin(users, eq(friends.user_id, users.id))
         .where(eq(friends.friend_id, user.id));
-      
+
       // Combine the results and return user data without password
       const { password: _, ...userWithoutPassword } = user;
       const userData = {
@@ -264,19 +295,13 @@ export function setupAuth(app: Express) {
         friends: [...friends1, ...friends2],
         tokens: {
           accessToken,
-          refreshToken
-        }
+          refreshToken,
+        },
       };
-      
-      console.log("Login successful - user found with friends:", { 
-        id: user.id, 
-        username: user.username, 
-        friendsCount: friends1.length + friends2.length
-      });
-      
+
       res.json(userData);
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       res.status(500).json({ error: "Error during login" });
     }
   });
@@ -286,15 +311,8 @@ export function setupAuth(app: Express) {
     try {
       // Get userId from either JWT or session
       const userId = req.jwtPayload?.userId || req.session.userId;
-      
-      console.log("Checking user auth:", { 
-        sessionUserId: req.session.userId,
-        jwtUserId: req.jwtPayload?.userId,
-        effectiveUserId: userId
-      });
-      
+
       if (!userId) {
-        console.log("No user authentication found");
         return res.status(401).json({ error: "Not authenticated" });
       }
 
@@ -305,14 +323,13 @@ export function setupAuth(app: Express) {
           displayName: users.displayName,
           bio: users.bio,
           meetsAttendedCount: users.meetsAttendedCount,
-          createdAt: users.createdAt
+          createdAt: users.createdAt,
         })
         .from(users)
         .where(eq(users.id, userId))
         .limit(1);
 
       if (!user) {
-        console.log("User not found for ID:", userId);
         return res.status(401).json({ error: "User not found" });
       }
 
@@ -323,43 +340,36 @@ export function setupAuth(app: Express) {
           id: users.id,
           username: users.username,
           displayName: users.displayName,
-          createdAt: users.createdAt
+          createdAt: users.createdAt,
         })
         .from(friends)
         .innerJoin(users, eq(friends.friend_id, users.id))
         .where(eq(friends.user_id, userId));
-      
+
       // Then get friends where the current user is the friend_id
       const friends2 = await db
         .select({
           id: users.id,
           username: users.username,
           displayName: users.displayName,
-          createdAt: users.createdAt
+          createdAt: users.createdAt,
         })
         .from(friends)
         .innerJoin(users, eq(friends.user_id, users.id))
         .where(eq(friends.friend_id, userId));
-      
+
       // Combine the results
       const userFriends = [...friends1, ...friends2];
 
       // Add friends to user data
       const userData = {
         ...user,
-        friends: userFriends
+        friends: userFriends,
       };
 
-      console.log("User found:", { 
-        id: user.id, 
-        username: user.username, 
-        friendsCount: userFriends.length,
-        friendIds: userFriends.map((f: any) => f.id || 0)
-      });
-      
       res.json(userData);
     } catch (error) {
-      console.error('Get user error:', error);
+      console.error("Get user error:", error);
       res.status(500).json({ error: "Error fetching user" });
     }
   });
@@ -369,60 +379,81 @@ export function setupAuth(app: Express) {
     try {
       // Get refresh token from request body
       const { refreshToken } = req.body;
-      
+
       if (!refreshToken) {
         return res.status(400).json({ error: "Refresh token is required" });
       }
-      
+
       // Validate the refresh token using the imported function
       const payload = verifyToken(refreshToken);
-      
-      if (!payload || payload.tokenType !== 'refresh') {
+
+      if (!payload || payload.tokenType !== "refresh") {
         return res.status(401).json({ error: "Invalid refresh token" });
       }
-      
+
       // Get the user
       const [user] = await db
         .select()
         .from(users)
         .where(eq(users.id, payload.userId))
         .limit(1);
-        
+
       if (!user) {
         return res.status(401).json({ error: "User not found" });
       }
-      
+
       // Generate new tokens
       const newAccessToken = generateAccessToken(user);
       const newRefreshToken = generateRefreshToken(user);
-      
+       const refreshHash = hashRefreshToken(refreshToken);
+       const rotated = await db.execute(sql`
+         UPDATE auth_refresh_tokens
+         SET revoked_at = NOW()
+         WHERE token_hash = ${refreshHash}
+           AND user_id = ${user.id}
+           AND revoked_at IS NULL
+           AND expires_at > NOW()
+         RETURNING token_hash
+       `);
+       if (rotated.rows.length !== 1) {
+         return res.status(401).json({ error: "Invalid or expired refresh token" });
+       }
+       await storeRefreshToken(user.id, newRefreshToken);
+
       res.json({
         accessToken: newAccessToken,
-        refreshToken: newRefreshToken
+        refreshToken: newRefreshToken,
       });
     } catch (error) {
-      console.error('Token refresh error:', error);
+      console.error("Token refresh error:", error);
       res.status(500).json({ error: "Error refreshing token" });
     }
   });
 
   // Logout endpoint with enhanced error handling
   app.post("/api/logout", (req, res) => {
-    console.log("Logout attempt for user:", req.session.userId || req.jwtPayload?.userId);
+    const refreshToken = typeof req.body?.refreshToken === "string" ? req.body.refreshToken : null;
+    const revokeRefreshToken = refreshToken
+      ? db.execute(sql`
+          UPDATE auth_refresh_tokens
+          SET revoked_at = NOW()
+          WHERE token_hash = ${hashRefreshToken(refreshToken)}
+            AND revoked_at IS NULL
+        `).catch(() => undefined)
+      : Promise.resolve();
     if (req.session) {
       req.session.destroy((err) => {
         if (err) {
           console.error("Logout error:", err);
           return res.status(500).json({ error: "Could not log out" });
         }
-        console.log("Logout successful");
-        res.clearCookie('connect.sid', {
-          path: '/',
+        res.clearCookie("connect.sid", {
+          path: "/",
           httpOnly: true,
-          secure: false,
-          sameSite: 'lax'
+           secure: process.env.NODE_ENV === "production" || process.env.COOKIE_SECURE === "true",
+          sameSite: "lax",
         });
-        res.json({ message: "Logged out successfully" });
+        void revokeRefreshToken.then(() => res.json({ message: "Logged out successfully" }));
       });
     } else {
       res.json({ message: "Already logged out" });
