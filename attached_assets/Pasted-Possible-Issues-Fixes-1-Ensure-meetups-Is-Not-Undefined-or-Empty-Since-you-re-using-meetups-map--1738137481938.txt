@@ -1,0 +1,81 @@
+Possible Issues & Fixes
+1. Ensure meetups Is Not Undefined or Empty
+Since you're using meetups?.map(), the code won’t crash, but if meetups is undefined or [], no markers will be created.
+
+Add a console log before rendering to verify meetups is received:
+
+tsx
+Copy
+Edit
+console.log("Meetups data in MapView:", meetups);
+✅ If meetups logs as undefined or [], it means meetups is not being passed to MapView.tsx correctly.
+✅ Solution: In home.tsx, explicitly pass sampleMeetups:
+
+tsx
+Copy
+Edit
+<MapView meetups={sampleMeetups} />
+And modify MapView.tsx:
+
+tsx
+Copy
+Edit
+const MapView = ({ meetups = [] }) => {  // Ensures meetups is never undefined
+2. Verify Latitude & Longitude Are Numbers
+If latitude or longitude are strings, the markers won’t appear.
+Check their type:
+
+tsx
+Copy
+Edit
+console.log("Meetup Coordinates:", meetup.latitude, meetup.longitude, typeof meetup.latitude, typeof meetup.longitude);
+✅ If typeof logs "string string", fix it like this:
+
+tsx
+Copy
+Edit
+position={{
+  lat: Number(meetup.latitude),
+  lng: Number(meetup.longitude),
+}}
+3. Ensure Google Maps API Is Loaded Before Rendering
+If google.maps isn't ready, markers won't render.
+
+Modify MapView.tsx to check if the API is loaded before adding markers:
+
+tsx
+Copy
+Edit
+const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+
+return (
+  <LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY} onLoad={() => setGoogleMapsLoaded(true)}>
+    {googleMapsLoaded ? (
+      <GoogleMap mapContainerStyle={containerStyle} center={center} zoom={12}>
+        {meetups.map((meetup) => (
+          <Marker
+            key={meetup.id}
+            position={{ lat: meetup.latitude, lng: meetup.longitude }}
+            onClick={() => console.log('Marker clicked:', meetup)}
+          />
+        ))}
+      </GoogleMap>
+    ) : (
+      <div>Loading map...</div>
+    )}
+  </LoadScript>
+);
+✅ Prevents markers from rendering before google.maps is ready.
+
+4. Ensure the Map Is Centered Around a Valid Marker
+If the map isn’t centered on markers, they might be off-screen.
+
+Modify your map's center:
+
+tsx
+Copy
+Edit
+const center = meetups.length > 0 
+  ? { lat: meetups[0].latitude, lng: meetups[0].longitude }
+  : { lat: 37.7749, lng: -122.4194 };  // Default SF coordinates
+✅ This ensures the map starts where markers are located.

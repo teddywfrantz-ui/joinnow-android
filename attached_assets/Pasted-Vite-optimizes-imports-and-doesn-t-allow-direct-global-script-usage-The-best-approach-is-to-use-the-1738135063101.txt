@@ -1,0 +1,89 @@
+Vite optimizes imports and doesn’t allow direct global script usage. The best approach is to use the @googlemaps/js-api-loader package.
+
+Step 1: Install the package
+Run:
+
+bash
+Copy
+Edit
+npm install @googlemaps/js-api-loader
+Step 2: Load the API before using it
+Modify your map-view.tsx file like this:
+
+tsx
+Copy
+Edit
+import { useEffect, useState } from "react";
+import { Loader } from "@googlemaps/js-api-loader";
+
+const MapComponent = () => {
+  const [googleMapsLoaded, setGoogleMapsLoaded] = useState(false);
+
+  useEffect(() => {
+    const loader = new Loader({
+      apiKey: "YOUR_API_KEY",
+      libraries: ["places"],
+    });
+
+    loader.load().then(() => {
+      setGoogleMapsLoaded(true);
+    });
+  }, []);
+
+  if (!googleMapsLoaded) return <div>Loading Map...</div>;
+
+  return (
+    <div id="map" style={{ height: "500px", width: "100%" }}></div>
+  );
+};
+
+export default MapComponent;
+This ensures Google Maps API is fully loaded before usage.
+Use setGoogleMapsLoaded(true) after the API is available.
+2. Remove Any Direct google.maps References in JSX Before API Loads
+Your error occurs because google.maps is being accessed before the script loads. Instead of:
+
+tsx
+Copy
+Edit
+icon={{
+  path: google.maps.SymbolPath.CIRCLE, // ❌ Causes error
+  scale: 10,
+  fillColor: iconColor,
+}}
+Use:
+
+tsx
+Copy
+Edit
+icon={googleMapsLoaded ? { path: window.google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: iconColor } : null}
+This prevents errors when google.maps isn’t available yet.
+
+3. Restart Vite After Changes
+Run:
+
+bash
+Copy
+Edit
+npm run dev
+Alternative: Use @react-google-maps/api (For React)
+If your project uses React, a better approach is:
+
+bash
+Copy
+Edit
+npm install @react-google-maps/api
+And wrap your map component with:
+
+tsx
+Copy
+Edit
+import { GoogleMap, LoadScript } from "@react-google-maps/api";
+
+const MyMap = () => (
+  <LoadScript googleMapsApiKey="YOUR_API_KEY">
+    <GoogleMap center={{ lat: 40.7128, lng: -74.006 }} zoom={10} />
+  </LoadScript>
+);
+This will automatically handle script loading for you.
+

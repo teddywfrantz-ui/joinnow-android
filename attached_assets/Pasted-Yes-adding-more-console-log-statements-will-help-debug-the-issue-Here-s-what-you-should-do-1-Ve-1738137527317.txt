@@ -1,0 +1,81 @@
+Yes, adding more console.log statements will help debug the issue! Here’s what you should do:
+
+1. Verify meetups Data in home.tsx Before Passing to MapView
+Modify home.tsx to log the meetups array before passing it:
+
+tsx
+Copy
+Edit
+console.log("Meetups data before passing to MapView:", meetups);
+<MapView meetups={meetups || []} onMeetupSelect={setSelectedMeetup} />
+✅ If this logs undefined or [], the issue is in useMeetups(), meaning the meetups aren’t being fetched properly.
+
+2. Verify meetups Inside MapView.tsx
+Modify map-view.tsx to log meetups before rendering markers:
+
+tsx
+Copy
+Edit
+console.log("Meetups received in MapView:", meetups);
+✅ If it logs undefined or [], it means meetups is not being passed properly from home.tsx.
+
+3. Debug If Markers Are Being Created
+Modify map-view.tsx inside .map():
+
+tsx
+Copy
+Edit
+{meetups?.map((meetup) => {
+  console.log("Rendering marker for:", meetup.title, meetup.latitude, meetup.longitude);
+  return (
+    <Marker
+      key={meetup.id}
+      position={{
+        lat: Number(meetup.latitude),
+        lng: Number(meetup.longitude),
+      }}
+      onClick={() => {
+        console.log("Marker clicked:", meetup);
+        onMeetupSelect(meetup);
+      }}
+    />
+  );
+})}
+✅ If this doesn't log anything, it means meetups is empty or undefined.
+✅ If it logs correct lat/lng but markers don't show, continue to the next step.
+
+4. Ensure Google Maps API is Fully Loaded
+Modify map-view.tsx:
+
+tsx
+Copy
+Edit
+<LoadScript googleMapsApiKey={import.meta.env.VITE_GOOGLE_MAPS_API_KEY} onLoad={() => console.log("Google Maps API loaded successfully")}>
+✅ If "Google Maps API loaded successfully" never logs, then the API isn’t loading correctly.
+
+5. Verify Latitude & Longitude Are Numbers
+Modify map-view.tsx:
+
+tsx
+Copy
+Edit
+console.log("Meetup Coordinates:", meetup.latitude, meetup.longitude, typeof meetup.latitude, typeof meetup.longitude);
+✅ If typeof logs "string string", fix it with Number(meetup.latitude)
+
+6. Ensure the Map is Centered on a Valid Marker
+Modify your defaultCenter:
+
+tsx
+Copy
+Edit
+const defaultCenter = meetups.length > 0 
+  ? { lat: Number(meetups[0].latitude), lng: Number(meetups[0].longitude) }
+  : { lat: 37.7749, lng: -122.4194 };  // Default SF coordinates
+✅ If markers are appearing but off-screen, this ensures the map starts at the first meetup location.
+
+7. Hard Refresh & Restart Vite
+bash
+Copy
+Edit
+npm run dev
+Then force refresh the browser (Ctrl + Shift + R or Cmd + Shift + R on Mac).

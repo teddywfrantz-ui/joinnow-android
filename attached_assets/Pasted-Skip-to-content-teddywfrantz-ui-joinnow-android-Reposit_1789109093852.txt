@@ -1,0 +1,131 @@
+Skip to content
+teddywfrantz-ui
+joinnow-android
+Repository navigation
+Code
+Issues
+Pull requests
+Actions
+Projects
+Security and quality
+Insights
+Settings
+Build Android APK
+Update build-android-apk.yml #4
+All jobs
+Run details
+Annotations
+2 errors and 1 warning
+Build installable APK
+cancelled 4 minutes ago in 45m 19s
+Search logs
+3s
+1s
+2s
+1s
+0s
+32s
+0s
+12s
+7s
+44m 14s
+C/C++: ninja: Entering directory `/home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/expo-modules-core@57.0.17_react-native-worklets@0.10.1_@babel+core@7.29.7_react-native@_11b1d07fb86538218ee87504a54fba31/node_modules/expo-modules-core/android/.cxx/Debug/6q685k6x/arm64-v8a'
+C/C++: /home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/expo-modules-core@57.0.17_react-native-worklets@0.10.1_@babel+core@7.29.7_react-native@_11b1d07fb86538218ee87504a54fba31/node_modules/expo-modules-core/android/src/main/cpp/fabric/ExpoComponentDescriptorFactory.cpp:17:5: warning: 'RawPropsParser' is deprecated [-Wdeprecated-declarations]
+C/C++:    17 |     react::RawPropsParser(/*useRawPropsJsiValue=*/true)
+C/C++:       |     ^
+C/C++: /home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.18_react@19.2.3/node_modules/react-native/ReactCommon/react/renderer/core/RawPropsParser.h:31:5: note: 'RawPropsParser' has been explicitly marked deprecated here
+C/C++:    31 |   [[deprecated]] explicit RawPropsParser(bool /* ignored */) : RawPropsParser() {}
+C/C++:       |     ^
+C/C++: 1 warning generated.
+
+> Task :app:configureCMakeDebug[armeabi-v7a]
+> Task :app:configureCMakeDebug[x86]
+> Task :app:configureCMakeDebug[x86_64]
+> Task :expo-modules-core:configureCMakeDebug[armeabi-v7a]
+> Task :expo-modules-core:buildCMakeDebug[armeabi-v7a]
+C/C++: ninja: Entering directory `/home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/expo-modules-core@57.0.17_react-native-worklets@0.10.1_@babel+core@7.29.7_react-native@_11b1d07fb86538218ee87504a54fba31/node_modules/expo-modules-core/android/.cxx/Debug/6q685k6x/armeabi-v7a'
+C/C++: /home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/expo-modules-core@57.0.17_react-native-worklets@0.10.1_@babel+core@7.29.7_react-native@_11b1d07fb86538218ee87504a54fba31/node_modules/expo-modules-core/android/src/main/cpp/fabric/ExpoComponentDescriptorFactory.cpp:17:5: warning: 'RawPropsParser' is deprecated [-Wdeprecated-declarations]
+C/C++:    17 |     react::RawPropsParser(/*useRawPropsJsiValue=*/true)
+C/C++:       |     ^
+C/C++: /home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.18_react@19.2.3/node_modules/react-native/ReactCommon/react/renderer/core/RawPropsParser.h:31:5: note: 'RawPropsParser' has been explicitly marked deprecated here
+C/C++:    31 |   [[deprecated]] explicit RawPropsParser(bool /* ignored */) : RawPropsParser() {}
+C/C++:       |     ^
+C/C++: 1 warning generated.
+
+> Task :expo-modules-core:configureCMakeDebug[x86]
+> Task :expo-modules-core:buildCMakeDebug[x86]
+C/C++: ninja: Entering directory `/home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/expo-modules-core@57.0.17_react-native-worklets@0.10.1_@babel+core@7.29.7_react-native@_11b1d07fb86538218ee87504a54fba31/node_modules/expo-modules-core/android/.cxx/Debug/6q685k6x/x86'
+C/C++: /home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/expo-modules-core@57.0.17_react-native-worklets@0.10.1_@babel+core@7.29.7_react-native@_11b1d07fb86538218ee87504a54fba31/node_modules/expo-modules-core/android/src/main/cpp/fabric/ExpoComponentDescriptorFactory.cpp:17:5: warning: 'RawPropsParser' is deprecated [-Wdeprecated-declarations]
+C/C++:    17 |     react::RawPropsParser(/*useRawPropsJsiValue=*/true)
+C/C++:       |     ^
+C/C++: /home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.18_react@19.2.3/node_modules/react-native/ReactCommon/react/renderer/core/RawPropsParser.h:31:5: note: 'RawPropsParser' has been explicitly marked deprecated here
+C/C++:    31 |   [[deprecated]] explicit RawPropsParser(bool /* ignored */) : RawPropsParser() {}
+C/C++:       |     ^
+C/C++: 1 warning generated.
+
+> Task :react-native-reanimated:buildCMakeDebug[armeabi-v7a][reanimated]
+> Task :expo-modules-core:configureCMakeDebug[x86_64]
+> Task :expo-modules-core:buildCMakeDebug[x86_64]
+C/C++: ninja: Entering directory `/home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/expo-modules-core@57.0.17_react-native-worklets@0.10.1_@babel+core@7.29.7_react-native@_11b1d07fb86538218ee87504a54fba31/node_modules/expo-modules-core/android/.cxx/Debug/6q685k6x/x86_64'
+C/C++: /home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/expo-modules-core@57.0.17_react-native-worklets@0.10.1_@babel+core@7.29.7_react-native@_11b1d07fb86538218ee87504a54fba31/node_modules/expo-modules-core/android/src/main/cpp/fabric/ExpoComponentDescriptorFactory.cpp:17:5: warning: 'RawPropsParser' is deprecated [-Wdeprecated-declarations]
+C/C++:    17 |     react::RawPropsParser(/*useRawPropsJsiValue=*/true)
+C/C++:       |     ^
+C/C++: /home/runner/work/joinnow-android/joinnow-android/node_modules/.pnpm/react-native@0.86.3_@babel+core@7.29.7_@types+react@19.2.18_react@19.2.3/node_modules/react-native/ReactCommon/react/renderer/core/RawPropsParser.h:31:5: note: 'RawPropsParser' has been explicitly marked deprecated here
+C/C++:    31 |   [[deprecated]] explicit RawPropsParser(bool /* ignored */) : RawPropsParser() {}
+C/C++:       |     ^
+C/C++: 1 warning generated.
+
+> Task :expo-modules-core:mergeDebugNativeLibs
+> Task :expo-modules-core:copyDebugJniLibsProjectOnly
+> Task :react-native-gesture-handler:configureCMakeDebug[arm64-v8a]
+> Task :react-native-gesture-handler:configureCMakeDebug[armeabi-v7a]
+> Task :react-native-gesture-handler:configureCMakeDebug[x86]
+> Task :react-native-gesture-handler:configureCMakeDebug[x86_64]
+> Task :expo-modules-core:stripDebugDebugSymbols
+> Task :expo-modules-core:copyDebugJniLibsProjectAndLocalJars
+> Task :expo-modules-core:bundleDebugAar
+> Task :expo-modules-core:assembleDebug
+> Task :react-native-worklets:stripDebugDebugSymbols
+> Task :react-native-worklets:copyDebugJniLibsProjectAndLocalJars
+> Task :react-native-worklets:extractDebugAnnotations
+> Task :react-native-worklets:extractDeepLinksForAarDebug
+> Task :react-native-worklets:mergeDebugGeneratedProguardFiles
+> Task :react-native-worklets:mergeDebugConsumerProguardFiles
+> Task :react-native-worklets:prepareDebugArtProfile
+> Task :react-native-worklets:prepareLintJarForPublish
+> Task :react-native-worklets:mergeDebugJavaResource
+> Task :react-native-worklets:syncDebugLibJars
+> Task :react-native-worklets:bundleDebugAar
+> Task :react-native-worklets:assembleDebug
+> Task :react-native-reanimated:buildCMakeDebug[x86][reanimated]
+> Task :react-native-reanimated:buildCMakeDebug[x86_64][reanimated]
+> Task :react-native-reanimated:externalNativeBuildDebug
+> Task :react-native-reanimated:prefabDebugPackage
+> Task :react-native-gesture-handler:buildCMakeDebug[arm64-v8a]
+> Task :react-native-gesture-handler:buildCMakeDebug[armeabi-v7a]
+> Task :react-native-gesture-handler:buildCMakeDebug[x86]
+> Task :app:buildCMakeDebug[arm64-v8a]
+> Task :react-native-gesture-handler:buildCMakeDebug[x86_64]
+> Task :react-native-gesture-handler:mergeDebugNativeLibs
+> Task :react-native-gesture-handler:copyDebugJniLibsProjectOnly
+> Task :react-native-reanimated:mergeDebugNativeLibs
+> Task :react-native-reanimated:copyDebugJniLibsProjectOnly
+> Task :react-native-gesture-handler:stripDebugDebugSymbols
+> Task :react-native-gesture-handler:copyDebugJniLibsProjectAndLocalJars
+> Task :react-native-gesture-handler:bundleDebugAar
+> Task :react-native-gesture-handler:assembleDebug
+> Task :react-native-reanimated:stripDebugDebugSymbols
+> Task :react-native-reanimated:copyDebugJniLibsProjectAndLocalJars
+> Task :react-native-reanimated:bundleDebugAar
+> Task :react-native-reanimated:assembleDebug
+> Task :app:buildCMakeDebug[armeabi-v7a]
+> Task :app:buildCMakeDebug[x86]
+> Task :app:buildCMakeDebug[x86_64]
+Error: The operation was canceled.
+0s
+0s
+1s
+0s
+1s
+1s
+0s

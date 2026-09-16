@@ -1,0 +1,38 @@
+My Group tab
+	- Ability to create a group without having to have an Meetup shown on the Search tab (Map)
+		○ (This is so users can create groups to join other group's Meetup without having to make an Meetup of their own)
+		○ Create/Edit group
+			§ Group name
+			§ Invite users to group from friends list
+				□ Must add users as friends before you can invite someone to your group 
+
+	- A user who created the group is the Group Leader (Need view for Group Leader)
+		○ Ability to change name of group 
+		○ Ability to Disband group (Only group creator can disband group)
+		○ Ability to remove a user from group
+		○ Cannot leave the group without disbanding 
+		○ Ability to request to join a Meet up for the group (group can request to join as many meetups at a time) 
+
+	- A user who joined the group is just a Member of the group (Need view for Member)  
+		○ Ability to Leave group 
+		○ Ability to request to join a Meet up for the group
+			§ Only the user that requested to Join the meetup or the Group Leader can cancel that request to join a meetup. Any other member in the group cannot remove that request but should be able to see it 
+		
+	- 
+	- See current meetup that the group is associated with (Either someone else's or their own or none)
+		○ None
+			§ See list of pending meetups that the group is waiting to hear back on n
+		○ Group created Meetup
+			§ See pending requests to join
+			§ Ability to accept or reject
+			§ Ability to view the profile of the user/group that wants to join 
+			
+		○ Group joined a Meetup 
+			§ See the name of the Meetup that they are currently joined in on
+			§ Clicking on this Meetup takes them to the Meet Ups Tab in which they can view the details of the joined meetup etc.. 
+
+	- Anyone in the group can request to join a meetup
+		○ A group can request to join as many meetups at a time 
+			§ Once a meetup is accepted then the remaining meetups are auto-removed from the group that requested them and the group that received them
+
+	- Additional users cannot join a group after the group has already been accepted into a meetup or have created a up meetup for the group 

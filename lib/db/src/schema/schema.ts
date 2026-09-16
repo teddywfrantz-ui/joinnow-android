@@ -50,6 +50,17 @@ export const users = pgTable("users", {
   settings: jsonb("settings"),
 });
 
+export const oauthAccounts = pgTable("oauth_accounts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  provider: text("provider").notNull(),
+  providerAccountId: text("provider_account_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  providerAccountUnique: unique().on(table.provider, table.providerAccountId),
+  userProviderUnique: unique().on(table.userId, table.provider),
+}));
+
 // Meet History Table 
 export const meetHistory = pgTable("meet_history", {
   id: serial("id").primaryKey(),
@@ -95,11 +106,14 @@ export const notifications = pgTable("notifications", {
   title: text("title").notNull(),
   message: text("message").notNull(),
   type: text("type").notNull(), // 'info', 'warning', 'error', 'friend_request', 'friend_accepted', 'friend_rejected'
+  source_id: integer("source_id"),
   isRead: boolean("is_read").default(false),
   isSeen: boolean("is_seen").default(false),
   link: text("link"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => ({
+  uniqueSource: unique().on(table.user_id, table.type, table.source_id),
+}));
 
 export const pushTokens = pgTable("push_tokens", {
   id: serial("id").primaryKey(),
@@ -146,6 +160,25 @@ export const messages = pgTable("messages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const directMessages = pgTable("direct_messages", {
+  id: serial("id").primaryKey(),
+  sender_id: integer("sender_id").references(() => users.id).notNull(),
+  recipient_id: integer("recipient_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  meetup_id: integer("meetup_id").references(() => meetups.id),
+  created_at: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  conversationIndex: index("direct_messages_conversation_idx").on(
+    table.sender_id,
+    table.recipient_id,
+    table.created_at,
+  ),
+  recipientIndex: index("direct_messages_recipient_idx").on(
+    table.recipient_id,
+    table.created_at,
+  ),
+}));
+
 // Meetups table
 export const meetups = pgTable("meetups", {
   id: serial("id").primaryKey(),
@@ -180,6 +213,24 @@ export const joinRequests = pgTable("join_requests", {
 }, (table) => ({
   // Prevent duplicate requests between the same users
   uniqueRequest: unique().on(table.user_id, table.meetup_id)
+}));
+
+// Direct invitations from a Meet creator to an accepted friend.
+export const meetupInvitations = pgTable("meetup_invitations", {
+  id: serial("id").primaryKey(),
+  meetup_id: integer("meetup_id").references(() => meetups.id).notNull(),
+  inviter_id: integer("inviter_id").references(() => users.id).notNull(),
+  invitee_id: integer("invitee_id").references(() => users.id).notNull(),
+  status: text("status").notNull().default("pending"), // pending, accepted, rejected
+  created_at: timestamp("created_at").defaultNow(),
+  updated_at: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniqueInvitation: unique().on(table.meetup_id, table.invitee_id),
+  meetupIndex: index("meetup_invitations_meetup_idx").on(table.meetup_id),
+  inviteeStatusIndex: index("meetup_invitations_invitee_status_idx").on(
+    table.invitee_id,
+    table.status,
+  ),
 }));
 
 // Meetup Participants table
@@ -329,6 +380,23 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }));
 
+export const directMessagesRelations = relations(directMessages, ({ one }) => ({
+  sender: one(users, {
+    fields: [directMessages.sender_id],
+    references: [users.id],
+    relationName: "directMessageSender",
+  }),
+  recipient: one(users, {
+    fields: [directMessages.recipient_id],
+    references: [users.id],
+    relationName: "directMessageRecipient",
+  }),
+  meetup: one(meetups, {
+    fields: [directMessages.meetup_id],
+    references: [meetups.id],
+  }),
+}));
+
 export const friendRequestsRelations = relations(friendRequests, ({ one }) => ({
   sender: one(users, {
     fields: [friendRequests.sender_id],
@@ -398,6 +466,8 @@ export const userRelations = relations(users, ({ many }) => ({
   receivedGroupInvitations: many(groupInvitations, { relationName: "groupInvitee" }),
   groupMessages: many(groupMessages),
   pushTokens: many(pushTokens),
+  sentDirectMessages: many(directMessages, { relationName: "directMessageSender" }),
+  receivedDirectMessages: many(directMessages, { relationName: "directMessageRecipient" }),
 }));
 
 export const groupsRelations = relations(groups, ({ one, many }) => ({
@@ -564,6 +634,14 @@ export type Message = typeof messages.$inferSelect & {
   username?: string;
 };
 export type NewMessage = typeof messages.$inferInsert;
+export type DirectMessage = typeof directMessages.$inferSelect & {
+  senderUsername?: string;
+  senderDisplayName?: string | null;
+  senderProfilePicture?: string | null;
+  meetupTitle?: string | null;
+  meetupExpiresAt?: Date | string | null;
+};
+export type NewDirectMessage = typeof directMessages.$inferInsert;
 export type FriendRequest = typeof friendRequests.$inferSelect & {
   sender?: User;
   recipient?: User;

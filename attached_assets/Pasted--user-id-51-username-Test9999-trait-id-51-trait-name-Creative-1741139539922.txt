@@ -1,0 +1,407 @@
+[
+  {
+    "user_id": 51,
+    "username": "Test9999",
+    "trait_id": 51,
+    "trait_name": "Creative Thinker",
+    "total_votes": "17",
+    "net_rating": "13",
+    "trait_rank": "1"
+  },
+  {
+    "user_id": 50,
+    "username": "Test999",
+    "trait_id": 57,
+    "trait_name": "Kind",
+    "total_votes": "12",
+    "net_rating": "12",
+    "trait_rank": "2"
+  },
+  {
+    "user_id": 50,
+    "username": "Test999",
+    "trait_id": 58,
+    "trait_name": "Bookworm",
+    "total_votes": "11",
+    "net_rating": "11",
+    "trait_rank": "3"
+  },
+  {
+    "user_id": 50,
+    "username": "Test999",
+    "trait_id": 34,
+    "trait_name": "Organized",
+    "total_votes": "11",
+    "net_rating": "11",
+    "trait_rank": "3"
+  },
+  {
+    "user_id": 48,
+    "username": "Testt",
+    "trait_id": 56,
+    "trait_name": "Adventurous",
+    "total_votes": "10",
+    "net_rating": "10",
+    "trait_rank": "5"
+  },
+  {
+    "user_id": 51,
+    "username": "Test9999",
+    "trait_id": 3,
+    "trait_name": "Friendly",
+    "total_votes": "15",
+    "net_rating": "9",
+    "trait_rank": "6"
+  },
+  {
+    "user_id": 50,
+    "username": "Test999",
+    "trait_id": 49,
+    "trait_name": "Movie Fan",
+    "total_votes": "9",
+    "net_rating": "9",
+    "trait_rank": "6"
+  },
+  {
+    "user_id": 47,
+    "username": "Jeff",
+    "trait_id": 51,
+    "trait_name": "Creative Thinker",
+    "total_votes": "8",
+    "net_rating": "8",
+    "trait_rank": "8"
+  },
+  {
+    "user_id": 58,
+    "username": "DavidW",
+    "trait_id": 34,
+    "trait_name": "Organized",
+    "total_votes": "7",
+    "net_rating": "7",
+    "trait_rank": "9"
+  },
+  {
+    "user_id": 57,
+    "username": "EmmaT",
+    "trait_id": 64,
+    "trait_name": "Quick Learner",
+    "total_votes": "7",
+    "net_rating": "7",
+    "trait_rank": "9"
+  },
+  {
+    "user_id": 56,
+    "username": "MikeB",
+    "trait_id": 14,
+    "trait_name": "Knowledgeable",
+    "total_votes": "7",
+    "net_rating": "7",
+    "trait_rank": "9"
+  },
+  {
+    "user_id": 48,
+    "username": "Testt",
+    "trait_id": 14,
+    "trait_name": "Knowledgeable",
+    "total_votes": "7",
+    "net_rating": "7",
+    "trait_rank": "9"
+  },
+  {
+    "user_id": 17,
+    "username": "maharrison2010",
+    "trait_id": 49,
+    "trait_name": "Movie Fan",
+    "total_votes": "7",
+    "net_rating": "7",
+    "trait_rank": "9"
+  },
+  {
+    "user_id": 58,
+    "username": "DavidW",
+    "trait_id": 12,
+    "trait_name": "Reliable",
+    "total_votes": "6",
+    "net_rating": "6",
+    "trait_rank": "14"
+  },
+  {
+    "user_id": 56,
+    "username": "MikeB",
+    "trait_id": 54,
+    "trait_name": "Inclusive",
+    "total_votes": "6",
+    "net_rating": "6",
+    "trait_rank": "14"
+  },
+  {
+    "user_id": 55,
+    "username": "SarahJ",
+    "trait_id": 57,
+    "trait_name": "Kind",
+    "total_votes": "6",
+    "net_rating": "6",
+    "trait_rank": "14"
+  },
+  {
+    "user_id": 17,
+    "username": "maharrison2010",
+    "trait_id": 47,
+    "trait_name": "Nature Lover",
+    "total_votes": "6",
+    "net_rating": "6",
+    "trait_rank": "14"
+  },
+  {
+    "user_id": 56,
+    "username": "MikeB",
+    "trait_id": 59,
+    "trait_name": "Humorous",
+    "total_votes": "5",
+    "net_rating": "5",
+    "trait_rank": "18"
+  },
+  {
+    "user_id": 48,
+    "username": "Testt",
+    "trait_id": 49,
+    "trait_name": "Movie Fan",
+    "total_votes": "5",
+    "net_rating": "5",
+    "trait_rank": "18"
+  },
+  {
+    "user_id": 54,
+    "username": "testttt",
+    "trait_id": 34,
+    "trait_name": "Organized",
+    "total_votes": "5",
+    "net_rating": "5",
+    "trait_rank": "18"
+  },
+  {
+    "user_id": 54,
+    "username": "testttt",
+    "trait_id": 12,
+    "trait_name": "Reliable",
+    "total_votes": "5",
+    "net_rating": "5",
+    "trait_rank": "18"
+  },
+  {
+    "user_id": 54,
+    "username": "testttt",
+    "trait_id": 60,
+    "trait_name": "Gamer",
+    "total_votes": "5",
+    "net_rating": "5",
+    "trait_rank": "18"
+  },
+  {
+    "user_id": 56,
+    "username": "MikeB",
+    "trait_id": 60,
+    "trait_name": "Gamer",
+    "total_votes": "4",
+    "net_rating": "4",
+    "trait_rank": "23"
+  },
+  {
+    "user_id": 56,
+    "username": "MikeB",
+    "trait_id": 58,
+    "trait_name": "Bookworm",
+    "total_votes": "4",
+    "net_rating": "4",
+    "trait_rank": "23"
+  },
+  {
+    "user_id": 49,
+    "username": "Test99",
+    "trait_id": 53,
+    "trait_name": "Travel Enthusiast",
+    "total_votes": "4",
+    "net_rating": "4",
+    "trait_rank": "23"
+  },
+  {
+    "user_id": 50,
+    "username": "Test999",
+    "trait_id": 51,
+    "trait_name": "Creative Thinker",
+    "total_votes": "4",
+    "net_rating": "4",
+    "trait_rank": "23"
+  },
+  {
+    "user_id": 54,
+    "username": "testttt",
+    "trait_id": 61,
+    "trait_name": "Good Listener",
+    "total_votes": "4",
+    "net_rating": "4",
+    "trait_rank": "23"
+  },
+  {
+    "user_id": 54,
+    "username": "testttt",
+    "trait_id": 58,
+    "trait_name": "Bookworm",
+    "total_votes": "4",
+    "net_rating": "4",
+    "trait_rank": "23"
+  },
+  {
+    "user_id": 56,
+    "username": "MikeB",
+    "trait_id": 62,
+    "trait_name": "Foodie",
+    "total_votes": "3",
+    "net_rating": "3",
+    "trait_rank": "29"
+  },
+  {
+    "user_id": 55,
+    "username": "SarahJ",
+    "trait_id": 3,
+    "trait_name": "Friendly",
+    "total_votes": "3",
+    "net_rating": "3",
+    "trait_rank": "29"
+  },
+  {
+    "user_id": 55,
+    "username": "SarahJ",
+    "trait_id": 62,
+    "trait_name": "Foodie",
+    "total_votes": "3",
+    "net_rating": "3",
+    "trait_rank": "29"
+  },
+  {
+    "user_id": 52,
+    "username": "Test101",
+    "trait_id": 59,
+    "trait_name": "Humorous",
+    "total_votes": "3",
+    "net_rating": "3",
+    "trait_rank": "29"
+  },
+  {
+    "user_id": 46,
+    "username": "cleveland_host",
+    "trait_id": 50,
+    "trait_name": "Tech Enthusiast",
+    "total_votes": "3",
+    "net_rating": "3",
+    "trait_rank": "29"
+  },
+  {
+    "user_id": 47,
+    "username": "Jeff",
+    "trait_id": 49,
+    "trait_name": "Movie Fan",
+    "total_votes": "2",
+    "net_rating": "2",
+    "trait_rank": "34"
+  },
+  {
+    "user_id": 49,
+    "username": "Test99",
+    "trait_id": 8,
+    "trait_name": "Helpful",
+    "total_votes": "2",
+    "net_rating": "2",
+    "trait_rank": "34"
+  },
+  {
+    "user_id": 54,
+    "username": "testttt",
+    "trait_id": 53,
+    "trait_name": "Travel Enthusiast",
+    "total_votes": "2",
+    "net_rating": "2",
+    "trait_rank": "34"
+  },
+  {
+    "user_id": 53,
+    "username": "Alec",
+    "trait_id": 12,
+    "trait_name": "Reliable",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  },
+  {
+    "user_id": 58,
+    "username": "DavidW",
+    "trait_id": 3,
+    "trait_name": "Friendly",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  },
+  {
+    "user_id": 58,
+    "username": "DavidW",
+    "trait_id": 65,
+    "trait_name": "Prepared",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  },
+  {
+    "user_id": 56,
+    "username": "MikeB",
+    "trait_id": 63,
+    "trait_name": "Music Lover",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  },
+  {
+    "user_id": 50,
+    "username": "Test999",
+    "trait_id": 59,
+    "trait_name": "Humorous",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  },
+  {
+    "user_id": 51,
+    "username": "Test9999",
+    "trait_id": 66,
+    "trait_name": "dumb",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  },
+  {
+    "user_id": 48,
+    "username": "Testt",
+    "trait_id": 4,
+    "trait_name": "Respectful",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  },
+  {
+    "user_id": 48,
+    "username": "Testt",
+    "trait_id": 54,
+    "trait_name": "Inclusive",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  },
+  {
+    "user_id": 48,
+    "username": "Testt",
+    "trait_id": 55,
+    "trait_name": "Problem Solver",
+    "total_votes": "1",
+    "net_rating": "1",
+    "trait_rank": "37"
+  }
+]
