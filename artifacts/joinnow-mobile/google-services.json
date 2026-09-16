@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "629115516350",
+    "project_id": "joinnow-e8d1f",
+    "storage_bucket": "joinnow-e8d1f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:629115516350:android:1da0f8699c604eb9d035ef",
+        "android_client_info": {
+          "package_name": "com.joinnow.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIQy5prsV4jexYyT6FATtuigaT51jF1-I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
