@@ -1,0 +1,1 @@
+export { JoinNowWeb } from './JoinNowWeb.native';
