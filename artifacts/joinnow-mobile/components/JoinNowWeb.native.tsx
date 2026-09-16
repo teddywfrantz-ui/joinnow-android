@@ -13,7 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
-import WebView from 'react-native-webview/lib/WebView.android';
+import WebView from 'react-native-webview';
 import type {
   WebViewHttpErrorEvent,
   WebViewMessageEvent,
@@ -28,7 +28,7 @@ const JOINNOW_URL = /^https?:\/\//.test(configuredHost)
   ? configuredHost
   : `https://${configuredHost}`;
 const JOINNOW_ORIGIN = new URL(JOINNOW_URL).origin;
-const ANDROID_USER_AGENT = 'JoinNowAndroid/1.0';
+const WRAPPER_USER_AGENT = 'JoinNowMobile/1.0';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -39,10 +39,10 @@ Notifications.setNotificationHandler({
   }),
 });
 
-const ANDROID_BRIDGE_SCRIPT = `
+const WRAPPER_BRIDGE_SCRIPT = `
   (() => {
     const install = () => {
-      if (window.__joinNowAndroidBridgeInstalled || !document.documentElement || !document.body) return false;
+      if (window.__joinNowWebViewBridgeInstalled || !document.documentElement || !document.body) return false;
       const send = (payload) => {
         window.ReactNativeWebView?.postMessage(JSON.stringify(payload));
       };
@@ -51,6 +51,66 @@ const ANDROID_BRIDGE_SCRIPT = `
         type: 'theme',
         scheme: document.documentElement.classList.contains('dark') ? 'dark' : 'light'
       });
+      const lockPageZoom = () => {
+        const viewportContent =
+          'width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover';
+        const ensureViewportLock = () => {
+          let viewport = document.querySelector('meta[name="viewport"]');
+          if (!viewport) {
+            viewport = document.createElement('meta');
+            viewport.setAttribute('name', 'viewport');
+            (document.head || document.documentElement).appendChild(viewport);
+          }
+          if (viewport.getAttribute('content') !== viewportContent) {
+            viewport.setAttribute('content', viewportContent);
+          }
+        };
+        ensureViewportLock();
+
+        if (window.__joinNowPageZoomLockInstalled) return;
+        const isMapGesture = (event) => {
+          const target = event.target;
+          return target instanceof Element && Boolean(
+            target.closest('.gm-style, [data-join-now-map-surface="true"]')
+          );
+        };
+        const preventPageZoom = (event) => {
+          if (!isMapGesture(event)) event.preventDefault();
+        };
+        const preventPageMultiTouchZoom = (event) => {
+          if (event.touches.length > 1 && !isMapGesture(event)) {
+            event.preventDefault();
+          }
+        };
+        document.addEventListener('gesturestart', preventPageZoom, {
+          capture: true,
+          passive: false
+        });
+        document.addEventListener('gesturechange', preventPageZoom, {
+          capture: true,
+          passive: false
+        });
+        document.addEventListener('touchstart', preventPageMultiTouchZoom, {
+          capture: true,
+          passive: false
+        });
+        document.addEventListener('touchmove', preventPageMultiTouchZoom, {
+          capture: true,
+          passive: false
+        });
+
+        if (!window.__joinNowViewportLockObserverInstalled) {
+          const viewportObserver = new MutationObserver(ensureViewportLock);
+          viewportObserver.observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['content', 'name'],
+            childList: true,
+            subtree: true
+          });
+          window.__joinNowViewportLockObserverInstalled = true;
+        }
+        window.__joinNowPageZoomLockInstalled = true;
+      };
       const hideHamburger = () => {
         document.querySelectorAll('svg.lucide-menu').forEach((icon) => {
           const button = icon.closest('button');
@@ -261,6 +321,8 @@ const ANDROID_BRIDGE_SCRIPT = `
 
       const style = document.createElement('style');
       style.textContent = [
+        'html{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%;}',
+        '.gm-style{touch-action:auto!important;}',
         'button[data-join-now-android-hamburger="true"],',
         'button[data-sidebar="trigger"],',
         '[data-join-now-mobile-bottom-nav],',
@@ -345,10 +407,11 @@ const ANDROID_BRIDGE_SCRIPT = `
         '}'
       ].join('');
       document.documentElement.appendChild(style);
+      lockPageZoom();
       applyAndroidOnlyHiding();
       setTimeout(expandParticipantViewport, 250);
       setTimeout(expandParticipantViewport, 750);
-      window.__joinNowAndroidBridgeInstalled = true;
+      window.__joinNowWebViewBridgeInstalled = true;
       window.__joinNowAndroidSendTheme = sendTheme;
       sendPath();
       sendTheme();
@@ -371,15 +434,26 @@ const MAIN_TABS = [
   { label: 'Group', path: '/groups', icon: 'users' },
 ] as const;
 
-function pushTokenSyncScript(token: string) {
+function pushTokenSyncScript(token: string, platform: 'android' | 'ios') {
   return `
     (() => {
+      const report = (ok, status) => {
+        window.ReactNativeWebView?.postMessage(JSON.stringify({
+          type: 'push-token-sync',
+          ok,
+          status
+        }));
+      };
       const sync = () => fetch('/api/push-tokens', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: ${JSON.stringify(JSON.stringify({ token, platform: 'android' }))}
-      }).catch(() => {});
+         body: ${JSON.stringify(JSON.stringify({ token, platform }))}
+      }).then((response) => {
+        report(response.ok, response.status);
+      }).catch(() => {
+        report(false, 0);
+      });
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', sync, { once: true });
       } else {
@@ -407,40 +481,58 @@ export function JoinNowWeb() {
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [pushTokenRegistered, setPushTokenRegistered] = useState(false);
 
   const syncPushToken = useCallback(() => {
-    if (!pushToken) return;
-    webView.current?.injectJavaScript(pushTokenSyncScript(pushToken));
-  }, [pushToken]);
+    if (!pushToken || pushTokenRegistered) return;
+    webView.current?.injectJavaScript(
+      pushTokenSyncScript(pushToken, Platform.OS === 'ios' ? 'ios' : 'android'),
+    );
+  }, [pushToken, pushTokenRegistered]);
 
   useEffect(() => {
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' && Platform.OS !== 'ios') return;
 
     let cancelled = false;
     const registerForPushNotifications = async () => {
       try {
-        await Notifications.setNotificationChannelAsync('joinnow', {
-          name: 'JoinNow',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          sound: 'default',
-          lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        });
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('joinnow', {
+            name: 'JoinNow',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            sound: 'default',
+            lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+          });
+        }
         const current = await Notifications.getPermissionsAsync();
         const permission = current.granted
           ? current
           : await Notifications.requestPermissionsAsync();
         if (!permission.granted) return;
 
+        const configuredProjectId = process.env.EXPO_PUBLIC_EXPO_PROJECT_ID?.trim();
         const projectId =
-          Constants.expoConfig?.extra?.eas?.projectId ??
+          configuredProjectId ||
+          Constants.expoConfig?.extra?.eas?.projectId ||
           Constants.easConfig?.projectId;
+        if (!projectId) {
+          throw new Error(
+            "Expo project ID is not configured. Set EXPO_PUBLIC_EXPO_PROJECT_ID before building the mobile app.",
+          );
+        }
         const tokenResponse = await Notifications.getExpoPushTokenAsync(
-          projectId ? { projectId } : undefined,
+          { projectId },
         );
-        if (!cancelled) setPushToken(tokenResponse.data);
+        if (!cancelled) {
+          setPushToken(tokenResponse.data);
+          setPushTokenRegistered(false);
+        }
       } catch (error) {
-        console.warn('JoinNow push registration failed', error);
+        console.warn(
+          'JoinNow push registration failed. Check notification permissions, platform credentials, and Expo projectId.',
+          error,
+        );
       }
     };
 
@@ -452,11 +544,13 @@ export function JoinNowWeb() {
 
   useEffect(() => {
     if (!pushToken) return;
-    const timeout = setTimeout(syncPushToken, 300);
-    return () => clearTimeout(timeout);
+    syncPushToken();
+    const retry = setInterval(syncPushToken, 3000);
+    return () => clearInterval(retry);
   }, [pushToken, syncPushToken]);
 
   useEffect(() => {
+    if (Platform.OS !== 'android') return;
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
@@ -505,16 +599,22 @@ export function JoinNowWeb() {
     try {
       const message = JSON.parse(event.nativeEvent.data) as
         | { type: 'navigation'; path: string }
-        | { type: 'theme'; scheme: 'light' | 'dark' };
-      if (message.type === 'navigation') {
+        | { type: 'theme'; scheme: 'light' | 'dark' }
+        | { type: 'push-token-sync'; ok: boolean; status: number };
+      if (message.type === 'push-token-sync') {
+        if (message.ok) setPushTokenRegistered(true);
+      } else if (message.type === 'navigation') {
         setCurrentPath(message.path);
       } else if (message.type === 'theme') {
         setAppColorScheme(message.scheme);
       }
+      if (message.type === 'navigation' && pushToken) {
+        setTimeout(syncPushToken, 250);
+      }
     } catch {
       // Ignore messages not created by the Android wrapper bridge.
     }
-  }, []);
+  }, [pushToken, syncPushToken]);
 
   const navigateTo = useCallback((path: string) => {
     webView.current?.injectJavaScript('document.activeElement?.blur(); true;');
@@ -599,19 +699,22 @@ export function JoinNowWeb() {
         ref={webView}
         source={{ uri: JOINNOW_URL }}
         style={styles.webView}
-        applicationNameForUserAgent={ANDROID_USER_AGENT}
+        applicationNameForUserAgent={WRAPPER_USER_AGENT}
         originWhitelist={[JOINNOW_ORIGIN]}
-        injectedJavaScriptBeforeContentLoaded={ANDROID_BRIDGE_SCRIPT}
+        injectedJavaScriptBeforeContentLoaded={WRAPPER_BRIDGE_SCRIPT}
+        sharedCookiesEnabled
         thirdPartyCookiesEnabled
         domStorageEnabled
         javaScriptEnabled
+        setBuiltInZoomControls={false}
+        setDisplayZoomControls={false}
         geolocationEnabled
         mediaPlaybackRequiresUserAction={false}
         setSupportMultipleWindows={false}
         onNavigationStateChange={onNavigationStateChange}
         onMessage={onMessage}
          onLoadEnd={() => {
-           webView.current?.injectJavaScript(ANDROID_BRIDGE_SCRIPT);
+            webView.current?.injectJavaScript(WRAPPER_BRIDGE_SCRIPT);
            syncPushToken();
          }}
         onShouldStartLoadWithRequest={(request) => {
