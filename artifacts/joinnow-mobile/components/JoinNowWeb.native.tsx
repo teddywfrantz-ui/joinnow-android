@@ -13,6 +13,7 @@ import {
 import { Feather } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
+import * as WebBrowser from 'expo-web-browser';
 import WebView from 'react-native-webview';
 import type {
   WebViewHttpErrorEvent,
@@ -30,6 +31,15 @@ const JOINNOW_URL = /^https?:\/\//.test(configuredHost)
   : `https://${configuredHost}`;
 const JOINNOW_ORIGIN = new URL(JOINNOW_URL).origin;
 const WRAPPER_USER_AGENT = 'JoinNowMobile/1.0';
+const ANDROID_OAUTH_RETURN_URI = 'joinnow-mobile://oauth/callback';
+
+interface NativeOAuthPreparation {
+  authorizationUrl: string;
+  returnUri: string;
+  state: string;
+  codeVerifier: string;
+  expiresInSeconds: number;
+}
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -486,6 +496,91 @@ export function JoinNowWeb() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [pushToken, setPushToken] = useState<string | null>(null);
   const [pushTokenRegistered, setPushTokenRegistered] = useState(false);
+  const googleOAuthInProgress = useRef(false);
+
+  const showGoogleOAuthError = useCallback((error: string) => {
+    webView.current?.injectJavaScript(`
+      window.location.replace(${JSON.stringify(`/auth?oauthError=${error}`)});
+      true;
+    `);
+  }, []);
+
+  const startNativeGoogleAuth = useCallback(async () => {
+    if (Platform.OS !== 'android' || googleOAuthInProgress.current) return;
+    googleOAuthInProgress.current = true;
+
+    try {
+      const response = await fetch(
+        `${JOINNOW_ORIGIN}/api/auth/google/native/prepare`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+      if (!response.ok) {
+        throw new Error(`Native Google OAuth preparation failed with ${response.status}`);
+      }
+
+      const preparation = (await response.json()) as NativeOAuthPreparation;
+      if (
+        preparation.returnUri !== ANDROID_OAUTH_RETURN_URI ||
+        !preparation.authorizationUrl.startsWith(`${JOINNOW_ORIGIN}/`) ||
+        !/^[A-Za-z0-9_-]{32,256}$/.test(preparation.state) ||
+        !/^[A-Za-z0-9_-]{32,256}$/.test(preparation.codeVerifier)
+      ) {
+        throw new Error('Native Google OAuth preparation was invalid');
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(
+        preparation.authorizationUrl,
+        ANDROID_OAUTH_RETURN_URI,
+      );
+      if (result.type !== 'success') {
+        showGoogleOAuthError('google_cancelled');
+        return;
+      }
+
+      const callback = new URL(result.url);
+      if (
+        callback.protocol !== 'joinnow-mobile:' ||
+        callback.hostname !== 'oauth' ||
+        callback.pathname !== '/callback' ||
+        callback.searchParams.get('state') !== preparation.state
+      ) {
+        throw new Error('Native Google OAuth callback did not match the request');
+      }
+
+      const oauthError = callback.searchParams.get('error');
+      if (oauthError) {
+        showGoogleOAuthError(
+          /^google_[a-z_]+$/.test(oauthError) ? oauthError : 'google_failed',
+        );
+        return;
+      }
+
+      const handoffCode = callback.searchParams.get('code');
+      if (!handoffCode || !/^[A-Za-z0-9_-]{32,256}$/.test(handoffCode)) {
+        throw new Error('Native Google OAuth callback did not include a handoff code');
+      }
+
+      const bootstrapPath =
+        '/api/auth/google/native/bootstrap?' +
+        new URLSearchParams({
+          code: handoffCode,
+          state: preparation.state,
+          verifier: preparation.codeVerifier,
+        }).toString();
+      webView.current?.injectJavaScript(`
+        window.location.replace(${JSON.stringify(bootstrapPath)});
+        true;
+      `);
+    } catch (error) {
+      console.warn('JoinNow native Google sign-in failed.', error);
+      showGoogleOAuthError('google_failed');
+    } finally {
+      googleOAuthInProgress.current = false;
+    }
+  }, [showGoogleOAuthError]);
 
   const syncPushToken = useCallback(() => {
     if (!pushToken || pushTokenRegistered) return;
@@ -743,7 +838,16 @@ export function JoinNowWeb() {
           onShouldStartLoadWithRequest={(request) => {
             try {
               const url = new URL(request.url);
-              if (url.origin === JOINNOW_ORIGIN) return true;
+              if (url.origin === JOINNOW_ORIGIN) {
+                if (
+                  Platform.OS === 'android' &&
+                  url.pathname === '/api/auth/google'
+                ) {
+                  void startNativeGoogleAuth();
+                  return false;
+                }
+                return true;
+              }
               Linking.openURL(request.url);
               return false;
             } catch {
