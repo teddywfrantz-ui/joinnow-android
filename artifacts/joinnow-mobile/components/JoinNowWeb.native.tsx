@@ -31,7 +31,7 @@ const JOINNOW_URL = /^https?:\/\//.test(configuredHost)
   : `https://${configuredHost}`;
 const JOINNOW_ORIGIN = new URL(JOINNOW_URL).origin;
 const WRAPPER_USER_AGENT = 'JoinNowMobile/1.0';
-const ANDROID_OAUTH_RETURN_URI = 'joinnow-mobile://oauth/callback';
+const NATIVE_OAUTH_RETURN_URI = 'joinnow-mobile://oauth/callback';
 
 interface NativeOAuthPreparation {
   authorizationUrl: string;
@@ -172,7 +172,12 @@ const WRAPPER_BRIDGE_SCRIPT = `
           }
         });
       };
-      const expandParticipantViewport = () => {
+      const collapseParticipantViewport = () => {
+        const isInitialCreatedMeetNavigation =
+          window.location.pathname === '/active-meet' &&
+          new URLSearchParams(window.location.search).get('created') === '1';
+        if (isInitialCreatedMeetNavigation) return;
+
         const activeTab = Array.from(document.querySelectorAll('[role="tab"][data-state="active"]'))
           .find((tab) => /participants/i.test(tab.textContent || ''));
         const detailsHeader = document.querySelector('#meetup-header');
@@ -218,7 +223,7 @@ const WRAPPER_BRIDGE_SCRIPT = `
         hideHamburger();
         hideEmbeddedBottomNavigation();
         hideOptionalMapControls();
-        expandParticipantViewport();
+        collapseParticipantViewport();
         expandMeetDetailsParticipantsDialog();
         lockCompleteProfileButtonColor();
         sizeCreateMeetButton();
@@ -351,9 +356,9 @@ const WRAPPER_BRIDGE_SCRIPT = `
         '.gm-style-cc button,',
         'button[aria-label="Keyboard shortcuts"],',
         'button[title="Keyboard shortcuts"]{display:none!important}',
-        'button[aria-label="Toggle list view"] svg{',
-        'color:#2563eb!important;',
-        'stroke:#2563eb!important;',
+        'button[aria-label="Toggle list view"][data-state="off"] svg{',
+        'color:#ffffff!important;',
+        'stroke:#ffffff!important;',
         '}',
         '[data-join-now-user-profile]{',
         'width:calc(100vw - 16px)!important;',
@@ -423,8 +428,8 @@ const WRAPPER_BRIDGE_SCRIPT = `
       document.documentElement.appendChild(style);
       lockPageZoom();
       applyAndroidOnlyHiding();
-      setTimeout(expandParticipantViewport, 250);
-      setTimeout(expandParticipantViewport, 750);
+      setTimeout(collapseParticipantViewport, 250);
+      setTimeout(collapseParticipantViewport, 750);
       window.__joinNowWebViewBridgeInstalled = true;
       window.__joinNowAndroidSendTheme = sendTheme;
       sendPath();
@@ -500,13 +505,30 @@ export function JoinNowWeb() {
 
   const showGoogleOAuthError = useCallback((error: string) => {
     webView.current?.injectJavaScript(`
-      window.location.replace(${JSON.stringify(`/auth?oauthError=${error}`)});
+      (() => {
+        const errorPath = ${JSON.stringify(`/auth?oauthError=${error}`)};
+        fetch('/api/user', {
+          credentials: 'include',
+          cache: 'no-store'
+        })
+          .then((response) => {
+            window.location.replace(response.ok ? '/' : errorPath);
+          })
+          .catch(() => {
+            window.location.replace(errorPath);
+          });
+      })();
       true;
     `);
   }, []);
 
   const startNativeGoogleAuth = useCallback(async () => {
-    if (Platform.OS !== 'android' || googleOAuthInProgress.current) return;
+    if (
+      (Platform.OS !== 'android' && Platform.OS !== 'ios') ||
+      googleOAuthInProgress.current
+    ) {
+      return;
+    }
     googleOAuthInProgress.current = true;
 
     try {
@@ -523,7 +545,7 @@ export function JoinNowWeb() {
 
       const preparation = (await response.json()) as NativeOAuthPreparation;
       if (
-        preparation.returnUri !== ANDROID_OAUTH_RETURN_URI ||
+        preparation.returnUri !== NATIVE_OAUTH_RETURN_URI ||
         !preparation.authorizationUrl.startsWith(`${JOINNOW_ORIGIN}/`) ||
         !/^[A-Za-z0-9_-]{32,256}$/.test(preparation.state) ||
         !/^[A-Za-z0-9_-]{32,256}$/.test(preparation.codeVerifier)
@@ -533,7 +555,7 @@ export function JoinNowWeb() {
 
       const result = await WebBrowser.openAuthSessionAsync(
         preparation.authorizationUrl,
-        ANDROID_OAUTH_RETURN_URI,
+        NATIVE_OAUTH_RETURN_URI,
       );
       if (result.type !== 'success') {
         showGoogleOAuthError('google_cancelled');
@@ -612,12 +634,12 @@ export function JoinNowWeb() {
 
         const configuredProjectId = process.env.EXPO_PUBLIC_EXPO_PROJECT_ID?.trim();
         const projectId =
-          configuredProjectId ||
+          Constants.easConfig?.projectId ||
           Constants.expoConfig?.extra?.eas?.projectId ||
-          Constants.easConfig?.projectId;
+          configuredProjectId;
         if (!projectId) {
           throw new Error(
-            "Expo project ID is not configured. Set EXPO_PUBLIC_EXPO_PROJECT_ID before building the mobile app.",
+            "Expo project ID is not configured in the EAS or Expo app configuration.",
           );
         }
         const tokenResponse = await Notifications.getExpoPushTokenAsync(
@@ -840,7 +862,7 @@ export function JoinNowWeb() {
               const url = new URL(request.url);
               if (url.origin === JOINNOW_ORIGIN) {
                 if (
-                  Platform.OS === 'android' &&
+                  (Platform.OS === 'android' || Platform.OS === 'ios') &&
                   url.pathname === '/api/auth/google'
                 ) {
                   void startNativeGoogleAuth();
